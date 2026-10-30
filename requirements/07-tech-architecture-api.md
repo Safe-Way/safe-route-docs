@@ -21,7 +21,7 @@
 | 장소 검색 | 카카오 로컬 API (서버가 대신 호출) | 한국 장소 검색 품질, 하루 10만 번 무료 | 네이버 검색 API |
 | 데이터 내려받기 | Python 3 표준 라이브러리 스크립트 | 가끔 돌리는 도구라 설치 없이 실행. 적재는 Java | Java로 통일 |
 | 테스트 | JUnit 5 + Spring Boot Test | 기본 포함 | — |
-| 버전 관리 | git + GitHub 비공개 저장소 2개: 코드는 safe-route, 요구사항 문서는 safe-route-docs (2026-10-30에 나눔) | `.env`·원본 데이터는 제외 | — |
+| 버전 관리 | git + GitHub 비공개 저장소 3개: 서버 코드는 safe-route, 안드로이드 앱은 safe-route-android(패키지 com.deungbul.anshimgil, Jetpack Compose, minSdk 26), 요구사항 문서는 safe-route-docs (2026-10-30에 나눔) | `.env`·원본 데이터는 제외 | — |
 
 ## 8. 시스템 구조
 
@@ -94,6 +94,8 @@
 - `night`: `auto`(기본, 일몰 계산), `on`, `off` 중 하나(FR-03). 낮에 시연할 때는 `on`으로 보낸다.
 - `mode`: `child`(어린이·청소년)·`elder`(노인)·`wheelchair`(휠체어)·`basic`(기본, 그 밖의 보행자) 중 하나. 1차부터 보낸다. 없으면 `basic`.
 
+  앱(safe-route-android PR #13)은 임시로 `child`·`senior`·`disabled`·`general`을 쓰고 있다. 서버 API를 만들기 전에 B·C·D파트가 한쪽으로 맞춘다(2026-10-30 확인).
+
 응답 (좌표와 시설 목록은 줄인 예):
 
 ```json
@@ -151,6 +153,93 @@
 ```
 
 `source`는 `llm`(검사를 통과한 다듬은 문장) 또는 `template`(LLM 실패·3초 초과·검사 탈락으로 기본 문장을 그대로 돌려줌)다. 앱은 `llm`일 때만 카드의 문장을 바꾼다. 이 주소가 멈춰도 경로 화면은 기본 문장으로 그대로 동작한다.
+
+### 8.4 앱↔서버 연결에 필요한 것
+
+앱은 서버 주소로 HTTP 요청을 보내고 JSON을 받는다(8.3). 중간에 따로 둘 서버(게이트웨이·메시지 큐 등)는 없다. 대신 아래 다섯 가지를 챙겨야 휴대폰에서 실제로 연결된다.
+
+| 항목 | 할 일 | 파트 |
+| --- | --- | --- |
+| 휴대폰에서 서버까지 가는 길 | 학교 DB는 학교 네트워크 안에서만 접속되므로, 서버는 학교망에 연결된 노트북에서 돌린다. 개발: 에뮬레이터는 `http://10.0.2.2:8080`(노트북의 localhost), 실제 휴대폰은 노트북과 같은 와이파이에서 `http://노트북IP:8080`. 발표·학교 밖 시연: 노트북 서버를 터널(cloudflared 등)로 https 주소에 열거나 서버·DB를 클라우드로 옮김(0.5 "서버를 어디에") | C, D |
+| http 허용 | 안드로이드는 기본으로 https만 허용한다. 앱은 network\_security\_config.xml에서 10.0.2.2·localhost·127.0.0.1만 http를 허용해 두었다. 같은 와이파이의 실제 휴대폰으로 시연하려면 노트북 IP를 여기에 추가한다. 터널(https)을 쓰면 필요 없음 | D |
+| 통신 라이브러리 | 앱은 따로 라이브러리 없이 HttpURLConnection과 org.json으로 부른다(data/ServerApi.kt). 요청·응답 모양은 8.3을 따름. 서버 주소는 local.properties의 SERVER\_BASE\_URL에 넣고, 비워 두면 예시 데이터를 쓴다 | D |
+| 키 나누기 | 앱에는 카카오맵 SDK용 네이티브 앱 키만 넣고, 카카오 개발자 콘솔에 앱의 키 해시를 등록. 카카오 REST·공공데이터·TMAP·LLM 키는 서버 `.env`에만 두고 앱은 서버를 거쳐 씀(NFR-05) | C, D |
+| 실패 처리 | 앱 요청 타임아웃은 연결 5초, 응답 10초. 실패하면 "경로를 불러오지 못했어요"와 다시 시도 버튼(3.4). SOS는 서버 없이 동작 | D |
+
+**먼저 할 일.** 서버에는 아직 앱이 부를 API가 없다(데이터 적재 코드만 있음, 2026-10-30). C파트가 `/api/health`와, 8.3 예시 응답을 그대로 돌려주는 가짜 `/api/places`·`/api/route`를 먼저 만들어 두면, D파트는 경로 엔진(B파트)을 기다리지 않고 화면과 통신을 붙일 수 있다. 진짜 계산이 준비되면 같은 주소의 내용만 바꾼다. 앱(PR #13)은 큰 칸 이름만 8.3을 따르고 안쪽 모양은 임시로 정해 두었으니, 가짜 API를 만들 때 8.3과 앱 중 한쪽으로 맞춘다.
+
+**카카오맵 키 넣는 방법 (D파트).** 카카오맵 SDK 연결은 앱 저장소 safe-route-android에 이미 들어 있다(PR #9). 지도에는 서버의 `KAKAO_REST_KEY`가 아니라 같은 카카오 앱의 **네이티브 앱 키**를 쓴다. 서버 `.env`에는 넣지 않고 앱 프로젝트의 `local.properties`(git에서 빠짐)에 둔다. 키는 팀 채팅이 아니라 한 사람씩 따로 전달한다. 팀원이 처음 실행할 때 할 일:
+
+1. 카카오 개발자 사이트 → 내 애플리케이션 → `KAKAO_REST_KEY`를 받은 앱 → 앱 키에서 **네이티브 앱 키**를 받는다. Admin 키는 앱에 넣지 않는다.
+2. 같은 앱의 플랫폼 → Android에 패키지 이름 `com.deungbul.anshimgil`과 **자기 키 해시**를 등록한다. 키 해시는 컴퓨터마다 다르므로 팀원마다 한 번씩 추가한다(아래 명령으로 확인).
+3. 제품 설정의 카카오맵 사용 설정이 꺼져 있으면 켠다.
+4. 앱 프로젝트 맨 위 폴더의 `local.properties` 맨 아래에 아래 두 줄을 넣고 Sync한 뒤 실행한다.
+
+```bash
+keytool -exportcert -alias androiddebugkey -keystore ~/.android/debug.keystore -storepass android -keypass android | openssl sha1 -binary | openssl base64
+```
+
+```properties
+# 카카오맵 SDK용 네이티브 앱 키 (git에 올리지 않음)
+KAKAO_NATIVE_APP_KEY=여기에_네이티브_앱_키
+# 서버 주소. 에뮬레이터에서 이 컴퓨터의 서버는 http://10.0.2.2:8080, 비워 두면 예시 데이터
+SERVER_BASE_URL=
+```
+
+앱 저장소에서 관련 코드가 있는 곳:
+
+```text
+safe-route-android/
+├─ settings.gradle.kts          ← 카카오맵 저장소 주소 (dependencyResolutionManagement 안)
+├─ gradle/libs.versions.toml    ← SDK 버전 kakaoMap = "2.15.2"
+├─ local.properties             ← 키·서버 주소 (각자 만듦, git에 없음)
+└─ app/
+   ├─ build.gradle.kts          ← local.properties를 읽어 BuildConfig로 넘김
+   └─ src/main/
+      ├─ AndroidManifest.xml    ← INTERNET 권한, android:name=".SeipjidoApp"
+      ├─ res/xml/network_security_config.xml  ← http 허용 주소
+      └─ java/com/deungbul/anshimgil/
+         ├─ SeipjidoApp.kt      ← 앱이 켜질 때 SDK 초기화
+         ├─ map/KakaoMapView.kt ← Compose에서 쓰는 지도 (조선대 중심, 줌 16)
+         └─ data/ServerApi.kt   ← 서버 호출
+```
+
+`app/build.gradle.kts`에서 키와 서버 주소를 꺼내는 부분:
+
+```kotlin
+val localProperties = Properties().apply {
+    val file = rootProject.file("local.properties")
+    if (file.exists()) file.inputStream().use { load(it) }
+}
+val kakaoNativeAppKey: String = localProperties.getProperty("KAKAO_NATIVE_APP_KEY", "")
+val serverBaseUrl: String = localProperties.getProperty("SERVER_BASE_URL", "")
+
+android {
+    defaultConfig {
+        buildConfigField("String", "KAKAO_NATIVE_APP_KEY", "\"$kakaoNativeAppKey\"")
+        buildConfigField("String", "SERVER_BASE_URL", "\"$serverBaseUrl\"")
+    }
+    buildFeatures {
+        compose = true
+        buildConfig = true
+    }
+}
+```
+
+`SeipjidoApp.kt` (키가 없으면 초기화를 건너뛰고, 지도 화면에 안내 문구가 나온다):
+
+```kotlin
+class SeipjidoApp : Application() {
+    override fun onCreate() {
+        super.onCreate()
+        if (BuildConfig.KAKAO_NATIVE_APP_KEY.isNotBlank()) {
+            KakaoMapSdk.init(this, BuildConfig.KAKAO_NATIVE_APP_KEY)
+        }
+    }
+}
+```
+
+지도 대신 "키와 키 해시 등록을 확인해 주세요"가 나오면 2번(키 해시)부터 확인한다. 에뮬레이터(API 37)에서 지도가 뜨는 것은 확인했다(PR #9, 2026-10-30). 지도 색까지 어둡게 바꿀 수 있는지(FR-41)는 아직 확인하지 못했다.
 
 ## 9. 외부 API 명세
 

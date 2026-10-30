@@ -1,4 +1,6 @@
-# 문서
+# 세잎지도 문서
+
+세잎지도의 요구사항 분석서와 변경 이력을 두는 저장소다. 코드는 [safe-route](https://github.com/Safe-Way/safe-route)에 있다(2026-10-30에 문서와 코드를 나눔).
 
 | 문서 | 내용 |
 |---|---|
@@ -12,7 +14,7 @@
 ## 요구사항을 바꿀 때
 
 1. 원본 문서를 고친다.
-2. 바뀐 탭을 Markdown으로 내보내 `docs/requirements/` 안의 해당 파일을 통째로 덮어쓴다. 탭이 늘거나 이름이 바뀌면 `docs/requirements.md` 목차도 고친다.
+2. 바뀐 탭을 Markdown으로 내보내 `requirements/` 안의 해당 파일을 통째로 덮어쓴다. 탭이 늘거나 이름이 바뀌면 `requirements.md` 목차도 고친다.
 3. [CHANGELOG.md](CHANGELOG.md) 표 맨 위에 한 줄 추가: 바뀐 곳, 무엇이, **왜**, 요청한 사람.
 4. `feature/docs-…` 브랜치에서 커밋하고 `develop`으로 PR을 연다. PR 본문에도 왜 바꿨는지 적는다.
 

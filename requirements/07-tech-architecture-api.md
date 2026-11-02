@@ -55,6 +55,8 @@
 
 좌표는 WGS84 경도·위도를 `POINT(경도, 위도)`로 넣고(SRID 0) 거리는 `ST_Distance_Sphere`로 잰다. MySQL의 SRID 4326은 위도·경도 순서라 실수하기 쉽기 때문이다.
 
+B파트가 `edge_penalty`에 칸 추가(지킴이집·횡단·쉼 곳·보도턱·육교)와 감점 원값 저장을 제안했다(2026-10-30). 도로망 표를 만들기 전에 정할 것은 6.5 "A파트와 맞출 것"(C1\~C6)에 있다.
+
 ### 8.3 앱↔서버 API (1차)
 
 1차에서 앱이 부르는 서버 주소는 3개다. SOS·경보음·보호자 문자는 휴대폰 안에서 끝나므로 서버 API가 없다. 걷는 동안의 위치도 서버에 보내지 않는다(NFR-07). 모든 주소는 `/api`로 시작하고 JSON(UTF-8)으로 주고받는다. 좌표는 `lat`(위도)·`lon`(경도)로 이름을 붙여 쓰고, 경로 선(`geometry`)만 GeoJSON 순서인 `[경도, 위도]` 배열이다.
@@ -94,7 +96,7 @@
 - `night`: `auto`(기본, 일몰 계산), `on`, `off` 중 하나(FR-03). 낮에 시연할 때는 `on`으로 보낸다.
 - `mode`: `child`(어린이·청소년)·`elder`(노인)·`wheelchair`(휠체어)·`basic`(기본, 그 밖의 보행자) 중 하나. 1차부터 보낸다. 없으면 `basic`.
 
-  앱(safe-route-android PR #13)은 임시로 `child`·`senior`·`disabled`·`general`을 쓰고 있다. 서버 API를 만들기 전에 B·C·D파트가 한쪽으로 맞춘다(2026-10-30 확인).
+  앱(safe-route-android PR #13)은 임시로 `child`·`senior`·`disabled`·`general`을, 경로 엔진(B파트 route.yml)은 adult·child·senior·wheelchair를 쓰고 있어 세 곳이 모두 다르다(6.5). 서버 API를 만들기 전에 B·C·D파트가 한쪽으로 맞춘다(2026-10-30 확인).
 
 응답 (좌표와 시설 목록은 줄인 예):
 

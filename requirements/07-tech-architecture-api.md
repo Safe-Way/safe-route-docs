@@ -13,13 +13,13 @@
 | DB 접근 | JdbcTemplate | 수백만 건 적재와 공간 SQL을 직접 쓰기 쉬움 | JPA |
 | 길찾기 | JGraphT (다익스트라·A\*) | 비용 함수를 마음대로 바꾸고, 경로 위 시설을 세기 쉬움 | GraphHopper (빠르지만 상황별 비용·설명을 붙이기 어려움), pgRouting (PostgreSQL 필요) |
 | 전국 길찾기 구조 | 길·감점은 DB에, 요청 때 출발·도착 주변 범위만 읽어 그래프 생성 | 전국 그래프를 메모리에 두지 않아도 됨. 도보는 거리가 짧아 범위가 작음 | 전국 그래프 상주 |
-| 도로망 | OpenStreetMap 대한민국 PBF, osm4j로 읽음 | 보행길·계단·덮개 정보가 있고 무료 | 국가교통DB 보행네트워크 (지역이 제한적) |
+| 도로망 | OpenStreetMap. 시연 지역은 Overpass API로 받아 Python 스크립트로 넣음(2026-11-02). 전국은 대한민국 PBF를 osm4j로 읽을 예정 | 보행길·계단·덮개 정보가 있고 무료 | 국가교통DB 보행네트워크 (지역이 제한적) |
 | 공간 계산 | JTS (버퍼, STRtree), 좌표 변환은 공식 직접 구현 | 시설→길 결합을 메모리에서 빠르게 | Proj4J (EPSG:3857·4326만 쓰므로 불필요) |
 | 일몰 계산 | commons-suncalc | 위도·경도·날짜만으로 계산, API 호출 없음 | 한국천문연구원 API |
 | 화면 | 안드로이드 앱, Android Studio + Kotlin으로 개발 | SOS 경보음·문자·잠금 화면 버튼·화면이 꺼져도 위치 받기는 앱이어야 됨. 팀 결정(결정 10·30번). 앱 언어는 Kotlin(2026-10-30 확정) | Leaflet 웹 + PWA (처음 추천), Capacitor |
 | 배경 지도 | 카카오맵 Android SDK (일반·위성) | 국내 지도 품질, 위성 지도 제공, 장소 검색도 카카오 | OpenStreetMap 타일, VWorld |
 | 장소 검색 | 카카오 로컬 API (서버가 대신 호출) | 한국 장소 검색 품질, 하루 10만 번 무료 | 네이버 검색 API |
-| 데이터 내려받기 | Python 3 표준 라이브러리 스크립트 | 가끔 돌리는 도구라 설치 없이 실행. 적재는 Java | Java로 통일 |
+| 데이터 내려받기 | Python 3 표준 라이브러리 스크립트 | 가끔 돌리는 도구라 설치 없이 실행. 시설 적재는 Java, 도로망·행정구역 경계·edge\_stat은 Python이 SQL을 만들어 mysql로 넣음(2026-11-02) | Java로 통일 |
 | 테스트 | JUnit 5 + Spring Boot Test | 기본 포함 | — |
 | 버전 관리 | git + GitHub 비공개 저장소 3개: 서버 코드는 safe-route, 안드로이드 앱은 safe-route-android(패키지 com.deungbul.anshimgil, Jetpack Compose, minSdk 26), 요구사항 문서는 safe-route-docs (2026-10-30에 나눔) | `.env`·원본 데이터는 제외 | — |
 
@@ -45,17 +45,21 @@
 | 표 | 내용 | 주요 칸 | 만든 때 |
 | --- | --- | --- | --- |
 | 시설 표 10개 (`streetlight`, `security_light`, `cctv`, `police`, `emergency_bell`, `convenience_store`, `child_safety_house`, `heat_shelter`, `cold_shelter`, `public_toilet`) | 시설 한 개가 한 줄. 종류마다 표 하나 (2026-10-29에 한 표 `facility`에서 나눔) | kind, source, source\_id, name, address, sido\_code, sgg\_code, lon, lat, geom(공간 인덱스), attrs(JSON), 종류별 칸(예: lamp\_count, camera\_count) | 만듦 |
+| 시설 표 3개 더 (footbridge, crosswalk, child\_protection\_zone) | 육교·횡단보도·어린이보호구역. 시설 표와 같은 모양이지만 facility\_all 뷰에는 넣지 않음 | 공통 칸 + 원본 항목(육교 장애인 편의시설, 횡단보도 보도턱 낮춤·음향신호기, 보호구역 도로폭·CCTV 등) | 만듦 (2026-10-30\~11-02) |
 | facility\_all (뷰) | 시설 표 10개를 한꺼번에 볼 때. 큰 표를 찾을 때는 공간 인덱스를 타도록 종류별 표에 직접 묻는다 | type(표 이름)과 공통 칸 | 만듦 |
 | `data_source` | 출처별 적재 현황 | type, source, total\_count, loaded\_count, skipped\_count, complete, loaded\_at | 만듦 |
-| `road_node` | 길이 만나는 점 | id(OSM 번호), lon, lat, geom | 2주차 |
-| `road_edge` | 두 점 사이의 길 | id, from\_node, to\_node, length\_m, highway, covered, steps, geom(선) | 2주차 |
-| `edge_penalty` | 길마다 미리 계산한 감점 | edge\_id, light, cctv, help, cover, stairs, heat, cold, traffic, data\_gap | 2주차 |
-| accident\_zone (추가안) | 사고다발 영역 한 곳이 한 줄 (FR-44) | kind(노인·어린이), year, 사고 건수, geom(다각형, 공간 인덱스). 길마다 영역 안인지는 edge\_penalty에 미리 계산 | 추가안 |
+| `road_node` | 길이 만나는 점 | id(OSM 번호), lon, lat, geom | 만듦 (2026-11-02) |
+| `road_edge` | 두 점 사이의 길 | id, from\_node, to\_node, length\_m, highway, covered, steps, geom(선) | 만듦 (2026-11-02) |
+| `edge_stat` | 길마다 감점의 원값. 0\~1 감점은 서버가 route.yml 기준값으로 만듦(6.5). edge\_penalty에서 이름을 바꿈 | edge\_id, light\_n·light\_cover\_m, cctv\_n·cctv\_cover\_m, help\_m·guard\_m·rest\_m(+1km 안 수), xing\_signal·nosignal·unknown, curb, footbridge\_ok, road\_class, sgg\_cd·dong\_cd, data\_gap | 만듦 (2026-11-02, 길 8,569개. 원일 님 확인 필요) |
+| admin\_area | 행정구역 경계 (SGIS 2025년 2분기, 광주 시도 1·구 5·행정동 96). 데이터 부족 판정과 길·시설의 구·동 찾기에 씀 | level(sido·sigungu·dong), code(SGIS 코드), name, full\_name, base\_date, geom(다각형, 공간 인덱스) | 만듦 (2026-11-02) |
+| accident\_zone (추가안) | 사고다발 영역 한 곳이 한 줄 (FR-44, 보류) | kind(노인·어린이), year, 사고 건수, geom(다각형, 공간 인덱스). 길마다 영역 안인지는 edge\_stat에 미리 계산 | 추가안 |
 | user\_place (추후) | 사용자가 제보한 장소 (FR-45 2단계). 1단계는 휴대폰에만 저장하므로 표가 필요 없음 | kind, name, lon, lat, geom, 제보 수, 확인 여부, 신고 수 | 추후 (추가안) |
 
 좌표는 WGS84 경도·위도를 `POINT(경도, 위도)`로 넣고(SRID 0) 거리는 `ST_Distance_Sphere`로 잰다. MySQL의 SRID 4326은 위도·경도 순서라 실수하기 쉽기 때문이다.
 
 B파트가 `edge_penalty`에 칸 추가(지킴이집·횡단·쉼 곳·보도턱·육교)와 감점 원값 저장을 제안했다(2026-10-30). 도로망 표를 만들기 전에 정할 것은 6.5 "A파트와 맞출 것"(C1\~C6)에 있다.
+
+도로망은 시연 지역(국립아시아문화전당 반경 2km)부터 `road_node`(6,431)·`road_edge`(8,569)에 넣었다(2026-11-02, OSM). `road_edge`에는 위 표의 칸에 더해 OSM 길 번호(`way_id`)·이름·인도/횡단 구분(`footway`)·다리·바닥 재질을 두고, `road_node`에는 횡단보도 신호(`crossing`)·보도턱(`kerb`) 표시를 둔다. 행정구역 경계는 `admin_area`(SGIS 2025년 2분기, 광주 시도 1·구 5·행정동 96)에 있다.
 
 ### 8.3 앱↔서버 API (1차)
 
@@ -146,7 +150,7 @@ B파트가 `edge_penalty`에 칸 추가(지킴이집·횡단·쉼 곳·보도턱
 
 **서버 상태** `GET /api/health` → `{ "status": "UP", "db": "UP", "dataDate": "2026-10-28", "roadArea": "광주" }`
 
-**2차에 늘어나는 것.** 요청에 `safeBoost`(안심 강화)가 붙는다. 응답의 `facilities[]`마다 경로의 몇 m 지점·왼쪽/오른쪽(FR-30)이 붙는다. 다시 안내(FR-35)는 새 주소 없이 같은 `/api/route`를 현재 위치로 다시 부른다. 경로마다 `arriveAt`(도착 예상 시각, FR-01-2)은 1차부터 넣는다. 비·폭염 등 다른 상황의 근거값은 3차다. 앱은 모르는 필드를 무시하므로 필드가 늘어도 깨지지 않는다.
+**2차에 늘어나는 것.** 응답의 `facilities[]`마다 경로의 몇 m 지점·왼쪽/오른쪽(FR-30)이 붙는다. 다시 안내(FR-35)는 새 주소 없이 같은 `/api/route`를 현재 위치로 다시 부른다. 경로마다 `arriveAt`(도착 예상 시각, FR-01-2)은 1차부터 넣는다. 비·폭염 등 다른 상황의 근거값은 3차다. 앱은 모르는 필드를 무시하므로 필드가 늘어도 깨지지 않는다.
 
 **3차: 설명 다듬기** `POST /api/explain` (FR-43, 3.5). 앱은 `/api/route`의 기본 문장을 먼저 보여 준 뒤 이 주소를 따로 부른다. 요청 본문은 `/api/route` 응답의 `conditions`·`explanation`·`dataQuality`를 그대로 보낸다(좌표와 장소 이름은 빼고). 서버는 상태를 남기지 않고, LLM을 3초까지만 기다린다.
 
@@ -245,7 +249,7 @@ class SeipjidoApp : Application() {
 
 ## 9. 외부 API 명세
 
-TMAP을 뺀 모든 API는 실제 호출까지 확인했다. 카카오 도보 길찾기는 제휴 파트너 전용이라 우리 키로는 403(permission denied)이 나와 TMAP으로 바꿨다. 기상청·에어코리아 한도는 개발계정 기준 대략값이다. 키 값은 `.env`에만 있고, 아래는 `.env`의 키 이름이다.
+아래 API는 모두 실제 호출까지 확인했다(TMAP은 2026-10-30, LLM은 아직 정할 것). 카카오 도보 길찾기는 제휴 파트너 전용이라 우리 키로는 403(permission denied)이 나와 TMAP으로 바꿨다. 기상청·에어코리아 한도는 개발계정 기준 대략값이다. 키 값은 `.env`에만 있고, 아래는 `.env`의 키 이름이다.
 
 | API | 주소 | 필수 값 | 한도 | `.env` 키 |
 | --- | --- | --- | --- | --- |
@@ -258,10 +262,14 @@ TMAP을 뺀 모든 API는 실제 호출까지 확인했다. 카카오 도보 길
 | 생활안전지도 데이터 | `www.safemap.go.kr/openapi2/IF_xxxx` | `serviceKey`, `pageNo`, `numOfRows`(최대 1,000), `returnType=JSON` | 하루 1,000번 | `SAFEMAP_KEY` |
 | 생활안전지도 그림(WMS) | `www.safemap.go.kr/openapi2/IF_xxxx_WMS` | `srs`, `bbox`, `width`, `height`, `format`, `transparent` | 하루 1,000번 | `SAFEMAP_KEY` |
 | 카카오 키워드·주소 검색 | `dapi.kakao.com/v2/local/search/keyword.json` | 요청 머리글 `Authorization: KakaoAK {키}`, `query` | 하루 10만 번 무료, 넘으면 429 | `KAKAO_REST_KEY` |
-| TMAP 보행자 경로 (비교용) | TMAP routes/pedestrian (SK open API) | 출발·도착 좌표 | 키 발급 후 확인 | `TMAP_APP_KEY` |
-| ODsay LAB 대중교통 길찾기 (FR-37) | `api.odsay.com/v1/api/searchPubTransPathT` (노선 선 좌표는 `loadLane`) | `apiKey`, `SX`·`SY`(출발 경도·위도), `EX`·`EY`(도착 경도·위도) | 키 발급 후 확인. 서버용 키는 호출하는 서버 IP 등록이 필요할 수 있음 | `ODSAY_API_KEY` |
+| TMAP 보행자 경로 (비교용) | TMAP routes/pedestrian (SK open API) | 출발·도착 좌표 | 하루 1,000건 (무료 상품) | `TMAP_APP_KEY` |
+| ODsay LAB 대중교통 길찾기 (FR-37) | `api.odsay.com/v1/api/searchPubTransPathT` (노선 선 좌표는 `loadLane`) | `apiKey`, `SX`·`SY`(출발 경도·위도), `EX`·`EY`(도착 경도·위도) | 한도는 확인 필요. 호출은 확인함(조선대→광주송정역 경로 16개). 서버용 키는 호출하는 서버 IP 등록이 필요할 수 있음 | `ODSAY_API_KEY` |
+| Overpass API (OSM 도로망) | overpass-api.de/api/interpreter (바쁘면 overpass.private.coffee 등 미러) | data = Overpass QL (걸을 수 있는 highway 길, 남·서·북·동 범위) | 키 없음. 공용 서버라 바쁘면 거절됨. 받은 응답은 data/raw/osm/에 남김 | — |
+| 공공데이터포털 표준데이터 (보안등·육교·횡단보도) | api.data.go.kr/openapi/tn\_pubr\_public\_scrty\_lmp\_api, …\_overpass\_api, …\_crosswalk\_api | serviceKey, pageNo, numOfRows(1,000), type=json | 개발계정 한도. 어린이보호구역(…\_child\_prtc\_zn\_api)은 아직 오류 30(키 미등록)이라 CSV로 받음 | DATA\_GO\_KR\_KEY (데이터별 키가 있으면 그것을 먼저) |
 | LLM 설명 다듬기 (FR-43, 3차) | 정할 것 | 사실 목록(숫자·상황·모드·부족한 데이터 종류)과 기본 문장. 좌표·장소 이름은 보내지 않음 | 정할 것. 3초 안에 답이 없으면 기본 문장. 같은 사실은 저장해 둔 문장을 다시 씀 | 정할 것 (서버 .env에만) |
 
-**기상청 격자:** 위도·경도를 람베르트 원추 투영 공식으로 nx·ny에 바꾼다. 조선대는 nx=60, ny=74다.
+**TMAP 구간 종류:** 보행자 경로 응답의 구간마다 `facilityType`이 온다(12 육교, 14 지하보도, 15 횡단보도, 17 계단). `searchOption=30`이면 계단을 뺀 경로를 준다. 비교 평가와 장애인 모드 확인에 쓴다.
+
+**기상청 격자:** 위도·경도를 람베르트 원추 투영 공식으로 nx·ny에 바꾼다. 아시아문화전당은 nx=59, ny=74다(조선대는 60, 74).
 
 **실패 처리:** 외부 API는 3초 안에 답이 없으면 포기하고 마지막으로 저장해 둔 값을 쓴다. 저장한 값도 없으면 그 상황은 "정보 없음"으로 둔다(NFR-03).

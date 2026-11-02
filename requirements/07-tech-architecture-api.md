@@ -50,8 +50,9 @@
 | `data_source` | 출처별 적재 현황 | type, source, total\_count, loaded\_count, skipped\_count, complete, loaded\_at | 만듦 |
 | `road_node` | 길이 만나는 점 | id(OSM 번호), lon, lat, geom | 만듦 (2026-11-02) |
 | `road_edge` | 두 점 사이의 길 | id, from\_node, to\_node, length\_m, highway, covered, steps, geom(선) | 만듦 (2026-11-02) |
-| `edge_stat` | 길마다 감점의 원값. 0\~1 감점은 서버가 route.yml 기준값으로 만듦(6.5). edge\_penalty에서 이름을 바꿈 | edge\_id, light\_n·light\_cover\_m, cctv\_n·cctv\_cover\_m, help\_m·guard\_m·rest\_m(+1km 안 수), xing\_signal·nosignal·unknown, curb, footbridge\_ok, road\_class, sgg\_cd·dong\_cd, data\_gap | 만듦 (2026-11-02, 길 8,569개. 원일 님 확인 필요) |
-| admin\_area | 행정구역 경계 (SGIS 2025년 2분기, 광주 시도 1·구 5·행정동 96). 데이터 부족 판정과 길·시설의 구·동 찾기에 씀 | level(sido·sigungu·dong), code(SGIS 코드), name, full\_name, base\_date, geom(다각형, 공간 인덱스) | 만듦 (2026-11-02) |
+| `edge_stat` | 길마다 감점의 원값. 0\~1 감점은 서버가 route.yml 기준값으로 만듦(6.5). edge\_penalty에서 이름을 바꿈 | edge\_id, light\_n·light\_cover\_m, cctv\_n·cctv\_cover\_m, help\_m·guard\_m·rest\_m·heat\_m·cold\_m(+1km 안 수), xing\_signal·nosignal·unknown, curb, footbridge\_ok, road\_class, sgg\_cd·dong\_cd, data\_gap | 만듦 (2026-11-02, 길 8,569개. 원일 님 확인 필요) |
+| admin\_area | 행정구역 경계 (SGIS 2025년 2분기, 전국 시도 17·시군구 252, 광주 행정동 96). 데이터 부족 판정과 길·시설의 구·동 찾기에 씀 | level(sido·sigungu·dong), code(SGIS 코드), name, full\_name, base\_date, geom(다각형, 공간 인덱스) | 만듦 (2026-11-02) |
+| region\_density | 시군구마다 시설 종류별 밀도와 데이터 부족 판정(전국 중간값의 10% 아래). edge\_stat.data\_gap을 만드는 근거 | sgg\_cd, kind(light·cctv·help·guard·rest), n, area\_km2, density, ratio, gap | 만듦 (2026-11-02, 전국 252곳) |
 | accident\_zone (추가안) | 사고다발 영역 한 곳이 한 줄 (FR-44, 보류) | kind(노인·어린이), year, 사고 건수, geom(다각형, 공간 인덱스). 길마다 영역 안인지는 edge\_stat에 미리 계산 | 추가안 |
 | user\_place (추후) | 사용자가 제보한 장소 (FR-45 2단계). 1단계는 휴대폰에만 저장하므로 표가 필요 없음 | kind, name, lon, lat, geom, 제보 수, 확인 여부, 신고 수 | 추후 (추가안) |
 
@@ -59,7 +60,7 @@
 
 B파트가 `edge_penalty`에 칸 추가(지킴이집·횡단·쉼 곳·보도턱·육교)와 감점 원값 저장을 제안했다(2026-10-30). 도로망 표를 만들기 전에 정할 것은 6.5 "A파트와 맞출 것"(C1\~C6)에 있다.
 
-도로망은 시연 지역(국립아시아문화전당 반경 2km)부터 `road_node`(6,431)·`road_edge`(8,569)에 넣었다(2026-11-02, OSM). `road_edge`에는 위 표의 칸에 더해 OSM 길 번호(`way_id`)·이름·인도/횡단 구분(`footway`)·다리·바닥 재질을 두고, `road_node`에는 횡단보도 신호(`crossing`)·보도턱(`kerb`) 표시를 둔다. 행정구역 경계는 `admin_area`(SGIS 2025년 2분기, 광주 시도 1·구 5·행정동 96)에 있다.
+도로망은 시연 지역(국립아시아문화전당 반경 2km)부터 `road_node`(6,431)·`road_edge`(8,569)에 넣었다(2026-11-02, OSM). `road_edge`에는 위 표의 칸에 더해 OSM 길 번호(`way_id`)·이름·인도/횡단 구분(`footway`)·다리·바닥 재질을 두고, `road_node`에는 횡단보도 신호(`crossing`)·보도턱(`kerb`) 표시를 둔다. 행정구역 경계는 `admin_area`(SGIS 2025년 2분기, 전국 시도 17·시군구 252, 광주 행정동 96)에 있고, 시군구별 시설 밀도와 데이터 부족 판정은 region\_density에 있다(6.5).
 
 ### 8.3 앱↔서버 API (1차)
 
@@ -72,14 +73,14 @@ B파트가 `edge_penalty`에 칸 추가(지킴이집·횡단·쉼 곳·보도턱
 | `GET /api/health` | 서버·DB 상태와 데이터 기준일. 시연 전 점검용 | — | C |
 | POST /api/explain (3차) | 기본 설명 문장을 LLM으로 다듬어 돌려줌. 실패하면 기본 문장 | FR-43 | C |
 
-**장소 검색** `GET /api/places?query=조선대학교&lat=35.1401&lon=126.9336`
+**장소 검색** `GET /api/places?query=국립아시아문화전당&lat=35.1473&lon=126.9214`
 
 - `query`는 필수(2자 이상). `lat`·`lon`은 선택이고, 주면 가까운 순으로 준다.
 - 결과는 최대 10개다.
 
 ```json
 { "places": [
-  { "name": "조선대학교", "address": "광주 동구 필문대로 309", "lat": 35.1401, "lon": 126.9336, "distanceM": 0 }
+  { "name": "국립아시아문화전당", "address": "전남광주통합특별시 동구 문화전당로 38", "lat": 35.1473, "lon": 126.9214, "distanceM": 0 }
 ] }
 ```
 
@@ -91,8 +92,8 @@ B파트가 `edge_penalty`에 칸 추가(지킴이집·횡단·쉼 곳·보도턱
 
 ```json
 {
-  "origin":      { "lat": 35.1468, "lon": 126.9195, "name": "충장로" },
-  "destination": { "lat": 35.1401, "lon": 126.9336, "name": "조선대 후문" },
+  "origin":      { "lat": 35.1473, "lon": 126.9214, "name": "국립아시아문화전당" },
+  "destination": { "lat": 35.1393, "lon": 126.9230, "name": "남광주역" },
   "night": "auto"
 }
 ```
@@ -108,11 +109,11 @@ B파트가 `edge_penalty`에 칸 추가(지킴이집·횡단·쉼 곳·보도턱
 {
   "conditions": { "night": true, "nightSource": "auto", "sunset": "17:41" },
   "routes": [
-    { "kind": "shortest", "distanceM": 1820, "durationMin": 23,
-      "geometry": [[126.9195, 35.1468], [126.9201, 35.1462]],
+    { "kind": "shortest", "distanceM": 1150, "durationMin": 15,
+      "geometry": [[126.9214, 35.1473], [126.9217, 35.1462]],
       "counts": { "cctv": 8, "light": 41, "bell": 1, "help": 2 } },
-    { "kind": "safe", "distanceM": 2000, "durationMin": 25,
-      "geometry": [[126.9195, 35.1468], [126.9210, 35.1470]],
+    { "kind": "safe", "distanceM": 1330, "durationMin": 17,
+      "geometry": [[126.9214, 35.1473], [126.9226, 35.1468]],
       "counts": { "cctv": 20, "light": 71, "bell": 4, "help": 4 } }
   ],
   "explanation": {

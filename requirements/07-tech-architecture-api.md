@@ -262,7 +262,7 @@ class SeipjidoApp : Application() {
 | 재난안전데이터 가로등 | `…/DSSP-IF-00084` | 같음 | 같음 | `SAFETYDATA_STREETLIGHT_KEY` |
 | 생활안전지도 데이터 | `www.safemap.go.kr/openapi2/IF_xxxx` | `serviceKey`, `pageNo`, `numOfRows`(최대 1,000), `returnType=JSON` | 하루 1,000번 | `SAFEMAP_KEY` |
 | 생활안전지도 그림(WMS) | `www.safemap.go.kr/openapi2/IF_xxxx_WMS` | `srs`, `bbox`, `width`, `height`, `format`, `transparent` | 하루 1,000번 | `SAFEMAP_KEY` |
-| 카카오 키워드·주소 검색 | `dapi.kakao.com/v2/local/search/keyword.json` | 요청 머리글 `Authorization: KakaoAK {키}`, `query` | 하루 10만 번 무료, 넘으면 429 | `KAKAO_REST_KEY` |
+| 카카오 키워드·주소 검색 | `dapi.kakao.com/v2/local/search/keyword.json` (장소 검색), `.../address.json` (데이터 적재 때 주소 → 좌표: 공중화장실 약 5.4만 번, CCTV 좌표 오류 약 6천 번, 2026-11-02) | 요청 머리글 `Authorization: KakaoAK {키}`, `query` | 하루 10만 번 무료, 넘으면 429 | `KAKAO_REST_KEY` |
 | TMAP 보행자 경로 (비교용) | TMAP routes/pedestrian (SK open API) | 출발·도착 좌표 | 하루 1,000건 (무료 상품) | `TMAP_APP_KEY` |
 | ODsay LAB 대중교통 길찾기 (FR-37) | `api.odsay.com/v1/api/searchPubTransPathT` (노선 선 좌표는 `loadLane`) | `apiKey`, `SX`·`SY`(출발 경도·위도), `EX`·`EY`(도착 경도·위도) | 한도는 확인 필요. 호출은 확인함(조선대→광주송정역 경로 16개). 서버용 키는 호출하는 서버 IP 등록이 필요할 수 있음 | `ODSAY_API_KEY` |
 | Overpass API (OSM 도로망) | overpass-api.de/api/interpreter (바쁘면 overpass.private.coffee 등 미러) | data = Overpass QL (걸을 수 있는 highway 길, 남·서·북·동 범위) | 키 없음. 공용 서버라 바쁘면 거절됨. 받은 응답은 data/raw/osm/에 남김 | — |

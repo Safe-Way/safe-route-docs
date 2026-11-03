@@ -49,7 +49,7 @@
 | facility\_all (뷰) | 시설 표 10개를 한꺼번에 볼 때. 큰 표를 찾을 때는 공간 인덱스를 타도록 종류별 표에 직접 묻는다 | type(표 이름)과 공통 칸 | 만듦 |
 | `data_source` | 출처별 적재 현황 | type, source, total\_count, loaded\_count, skipped\_count, complete, loaded\_at | 만듦 |
 | `road_node` | 길이 만나는 점 | id(OSM 번호), lon, lat, geom | 만듦 (2026-11-02) |
-| `road_edge` | 두 점 사이의 길 | id, from\_node, to\_node, length\_m, highway, covered, steps, geom(선) | 만듦 (2026-11-02) |
+| `road_edge` | 두 점 사이의 길 | id, from\_node, to\_node, length\_m, highway, covered, steps, wheelchair\_ramp(계단의 휠체어 경사로: 1 있음·0 없음·NULL 모름. OSM ramp:wheelchair·ramp로 DB가 계산, 2026-11-03 추가·학교 DB 반영. 시연 범위 계단 27개 중 있음 0·없음 11·모름 16), geom(선) | 만듦 (2026-11-02) |
 | `edge_stat` | 길마다 감점의 원값. 0\~1 감점은 서버가 route.yml 기준값으로 만듦(6.5). edge\_penalty에서 이름을 바꿈 | edge\_id, light\_n·light\_cover\_m, cctv\_n·cctv\_cover\_m, help\_m·help\_night\_m(밤에 열린 곳: 24시간 경찰·길가 비상벨·편의점)·guard\_m·rest\_m·heat\_m·cold\_m(+1km 안 수), school\_zone\_m(어린이보호구역 대상 시설까지, 300m 안이면 보호구역 안), xing\_signal·nosignal·unknown, curb, footbridge\_ok, road\_class, sgg\_cd·dong\_cd, data\_gap | 만듦 (2026-11-02, 길 8,569개. 원일 님 확인 필요) |
 | admin\_area | 행정구역 경계 (SGIS 2025년 2분기, 전국 시도 17·시군구 252, 광주 행정동 96). 데이터 부족 판정과 길·시설의 구·동 찾기에 씀 | level(sido·sigungu·dong), code(SGIS 코드), name, full\_name, base\_date, geom(다각형, 공간 인덱스) | 만듦 (2026-11-02) |
 | region\_density | 시군구마다 시설 종류별 밀도와 데이터 부족 판정(전국 중간값의 10% 아래). edge\_stat.data\_gap을 만드는 근거 | sgg\_cd, kind(light·cctv·help·guard·rest), n, area\_km2, density, ratio, gap | 만듦 (2026-11-02, 전국 252곳) |
@@ -58,6 +58,12 @@
 | cctv 목적 분류 (칸 추가) | 설치 목적 원문 11가지를 8개로 묶음. 목적이 빈 광주 파일은 10m 안 행안부 파일 카메라의 목적을 가져옴(6,614대 중 252대). 나머지는 '모름'이고, 나중에 다른 자료나 현장 확인으로 채울 때는 purpose\_from='직접 입력'으로 두면 다시 돌려도 덮어쓰지 않음. 길 계산·데이터 부족 판정·poi는 교통·쓰레기·시설·재난을 빼고 셈(2026-11-02 결정, 목적 모름은 셈) | purpose\_group(방범·어린이·다목적·교통·쓰레기·시설·재난·기타·모름), purpose\_from(원본 / 10m 안 행안부 파일 / 직접 입력) | 만듦 (2026-11-02, scripts/classify\_cctv.py. 방범 242,002·다목적 49,135·어린이 30,297·교통 22,558·모름 6,362 등) |
 | facility\_unlocated | 위치를 믿을 수 없어 시설 표에서 뺀 줄을 지우지 않고 모아 둔 표. 좌표가 한 점에 몰렸거나(지자체가 기관 좌표·기본값을 넣음) 좌표가 없었는데 카카오 주소·장소 검색으로도 못 찾았거나 번지 있는 주소가 없는 줄. 원본 줄 전체를 attrs에 둬서, 나중에 좌표를 찾으면 원래 표로 되돌릴 수 있음. scripts/fix\_cctv\_coords.py·fix\_pile\_coords.py·fill\_missing\_coords.py가 지우는 대신 여기로 옮김 | tbl(원래 표), source, source\_id, kind, name, address, lon·lat(원본 좌표), reason(뺀 이유), tried(찾아본 검색어), attrs, moved\_at | 만듦 (2026-11-02, 6,057줄: 보안등 4,128·CCTV 1,870·횡단보도 39·비상벨 17·지킴이집 3) |
 | holiday | 공휴일(관공서 공휴일 기준, 대체공휴일 포함). poi\_status가 평일 규칙을 판단할 때 주말처럼 봄. 직접 넣은 값이라 임시공휴일이 생기면 한 줄 추가 | day, name | 만듦 (2026-11-02, 2026\~2027년 40일) |
+| subway\_station | 광주 1호선 20역과 역마다 엘리베이터 등 장애인 편의시설 9종의 수(광주교통공사 API, 5.1). 고장 수는 바뀌므로 하루 한 번 다시 받는 안 | station\_id, name, address, lon, lat, geom, elevator\_total·elevator\_available·elevator\_disabled\_gates (에스컬레이터·휠체어리프트·장애인화장실 등도 같은 꼴), fetched\_at | 만듦 (2026-11-03, 20역. CSV로 먼저 받아 두었다가 넣음, 결정 42. migration 019, scripts/load\_transit.py) |
+| subway\_entrance | 역 출입구 좌표(OSM 92곳). 400m 안 가장 가까운 역에 붙임 | osm\_id, station\_id, exit\_no, wheelchair, lon, lat, geom | 만듦 (2026-11-03, 92곳) |
+| subway\_timetable | 역·방향·요일별 열차 도착 시각(2026-11-01 기준). 실시간 도착 API가 없어 다음 열차를 이 표로 계산 | station\_code, day\_type(평일·토요일·휴일·명절), direction(1 평동행·2 소태·녹동행), end\_station, arrive\_time, base\_date | 만듦 (2026-11-03, 14,730줄. 원본에 한 칸 밀린 역 코드 238줄은 역 이름으로 고침) |
+| subway\_transfer · subway\_exit\_bus · subway\_exit\_place | 역 환승(내리는 칸 → 출구 → 정류장까지 걸리는 시간, 2022)·출구별 연계 버스(2021)·출구 주변 장소(2021) | 역, 출구 번호 + (내리는 칸·정류장 번호·노선·환승 시간 / 노선·행선지 / 장소·거리·걸어서 걸리는 분) | 만듦 (2026-11-03, 6,001·283·524줄) |
+| bus\_stop · bus\_line | 광주 버스 정류장 5,625곳·노선 127개(광주버스정보 API). 버스 도착 정보는 저장하지 않고 요청 때 부름(9장) | busstop\_id, name, ars\_id, lon, lat, geom / line\_id, line\_name, first\_run, last\_run, run\_interval | 만듦 (2026-11-03, 정류장 5,625곳·노선 127개. 좌표 없는 정류장 2곳은 뺌) |
+| lowfloor\_bus | 차량마다 저상 여부(2025-12-31 기준 1,044대, 저상 513). 다음 버스가 저상인지는 도착 API의 LOW\_BUS로 알 수 있어, 이 표는 노선별 저상버스 비율 안내에 씀 | vehicle\_no, low\_floor, company, route\_name, base\_date | 만듦 (2026-11-03, 1,044대) |
 | accident\_zone (추가안) | 사고다발 영역 한 곳이 한 줄 (FR-44, 보류) | kind(노인·어린이), year, 사고 건수, geom(다각형, 공간 인덱스). 길마다 영역 안인지는 edge\_stat에 미리 계산 | 추가안 |
 | user\_place (추후) | 사용자가 제보한 장소 (FR-45 2단계). 1단계는 휴대폰에만 저장하므로 표가 필요 없음 | kind, name, lon, lat, geom, 제보 수, 확인 여부, 신고 수 | 추후 (추가안) |
 
@@ -284,11 +290,15 @@ class SeipjidoApp : Application() {
 | 카카오 키워드·주소 검색 | `dapi.kakao.com/v2/local/search/keyword.json` (장소 검색), `.../address.json` (데이터 적재 때 주소 → 좌표: 공중화장실 약 5.4만 번, CCTV 좌표 오류 약 6천 번, 몰린 좌표 약 6천 번, 광주 보안등 약 9천 번, 2026-11-02). 주소로 못 찾으면 키워드 검색에 '시·군 + 이름'(화장실 이름, 비상벨 설치 장소)을 넣고, 결과 주소에 그 시·군이 있을 때만 씀 | 요청 머리글 `Authorization: KakaoAK {키}`, `query` | 하루 10만 번 무료, 넘으면 429 | `KAKAO_REST_KEY` |
 | TMAP 보행자 경로 (비교용) | TMAP routes/pedestrian (SK open API) | 출발·도착 좌표 | 하루 1,000건 (무료 상품) | `TMAP_APP_KEY` |
 | ODsay LAB 대중교통 길찾기 (FR-37) | `api.odsay.com/v1/api/searchPubTransPathT` (노선 선 좌표는 `loadLane`) | `apiKey`, `SX`·`SY`(출발 경도·위도), `EX`·`EY`(도착 경도·위도) | 한도는 확인 필요. 호출은 확인함(조선대→광주송정역 경로 16개). 서버용 키는 호출하는 서버 IP 등록이 필요할 수 있음 | `ODSAY_API_KEY` |
+| 광주 버스 도착 (FR-37) | apis.data.go.kr/6290000/gj\_bis/arriveInfo (정류장 목록은 stationInfo, 노선은 lineInfo) | serviceKey, BUSSTOP\_ID, resultType=json. 응답: LINE\_NAME(노선), REMAIN\_MIN(남은 분), REMAIN\_STOP(남은 정류장), LOW\_BUS(1이면 저상), DIR\_END(방면), ARRIVE\_FLAG | 개발계정 한도라 서버가 정류장마다 잠깐(예: 30초) 저장해 두고 다시 씀(안). 2026-11-03 활용 신청 뒤 호출 확인 | DATA\_GO\_KR\_KEY |
+| 광주교통공사 지하철 편의시설 | www.grtc.co.kr/subway/openapi/json/disabledFacilityInformation (역 주소는 stationInformation) | station\_id (1 평동 \~ 20 녹동). 응답: 편의시설 종류(DT\_01 엘리베이터 \~ DT\_09)마다 전체·이용 가능 수, 고장 난 출입구 | 키 없음. http로 부르면 https로 넘어가므로 https로 부름 | — |
 | Overpass API (OSM 도로망) | overpass-api.de/api/interpreter (바쁘면 overpass.private.coffee 등 미러) | data = Overpass QL (걸을 수 있는 highway 길, 남·서·북·동 범위) | 키 없음. 공용 서버라 바쁘면 거절됨. 받은 응답은 data/raw/osm/에 남김 | — |
 | 공공데이터포털 표준데이터 (보안등·육교·횡단보도) | api.data.go.kr/openapi/tn\_pubr\_public\_scrty\_lmp\_api, …\_overpass\_api, …\_crosswalk\_api | serviceKey, pageNo, numOfRows(1,000), type=json | 개발계정 한도. 어린이보호구역(…\_child\_prtc\_zn\_api)은 아직 오류 30(키 미등록)이라 CSV로 받음 | DATA\_GO\_KR\_KEY (데이터별 키가 있으면 그것을 먼저) |
 | LLM 설명 다듬기 (FR-43, 3차) | 정할 것 | 사실 목록(숫자·상황·모드·부족한 데이터 종류)과 기본 문장. 좌표·장소 이름은 보내지 않음 | 정할 것. 3초 안에 답이 없으면 기본 문장. 같은 사실은 저장해 둔 문장을 다시 씀 | 정할 것 (서버 .env에만) |
 
 **TMAP 구간 종류:** 보행자 경로 응답의 구간마다 `facilityType`이 온다(12 육교, 14 지하보도, 15 횡단보도, 17 계단). `searchOption=30`이면 계단을 뺀 경로를 준다. 비교 평가와 장애인 모드 확인에 쓴다.
+
+광주 지하철: 실시간 도착 API는 공개되지 않았다(광주교통공사 stationTimeInfomation은 역 사이 걸리는 시간뿐, 2026-11-03 확인). 다음 열차는 열차 시간표(5.1)로 계산한다. 엘리베이터가 몇 번 출구에 있는지도 공개 자료가 없다.
 
 **기상청 격자:** 위도·경도를 람베르트 원추 투영 공식으로 nx·ny에 바꾼다. 아시아문화전당은 nx=59, ny=74다(조선대는 60, 74).
 

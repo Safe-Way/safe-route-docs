@@ -27,7 +27,9 @@
 
 무거운 일(내려받기, 적재, 길마다 감점 계산)은 **데이터를 갱신할 때 한 번**만 하고, 경로 요청 때는 출발·도착 주변의 길과 감점만 읽어 가중치를 곱해 계산한다.
 
-> 그림: 시스템 구성 · 준비 단계와 요청 단계 ([원본 문서](https://claude.ai/artifact/FQvgiTtePsoNKVNBhhHdTy)에서 볼 수 있음)
+<img src="images/architecture.png" alt="시스템 구성: 앱이 서버의 장소 검색·경로 엔진을 부르고, 서버는 학교 DB와 외부 API를 쓰며, 적재 스크립트가 원본 자료를 미리 DB에 넣는다" width="720">
+
+<sub>그림 원본은 [images/architecture.mmd](images/architecture.mmd)(mermaid)이고 조직 README의 구조도와 같다. 원본 문서의 그림(준비 단계와 요청 단계)은 [원본 문서](https://claude.ai/artifact/FQvgiTtePsoNKVNBhhHdTy)에서 볼 수 있다.</sub>
 
 앱은 서버하고만 통신하고, 인증키가 필요한 외부 API는 서버가 대신 부른다. 앱이 부르는 서버 주소는 8.3에 있다.
 

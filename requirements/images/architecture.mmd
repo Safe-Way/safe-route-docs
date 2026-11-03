@@ -1,0 +1,19 @@
+flowchart LR
+  app["안드로이드 앱<br/>Kotlin · 카카오맵 SDK"]
+  subgraph srv["서버: Spring Boot · Java 21"]
+    places["장소 검색<br/>/api/places"]
+    route["경로 엔진<br/>/api/route"]
+    situation["상황 판단<br/>밤 · 비 · 폭염"]
+    health["서버 상태<br/>/api/health"]
+  end
+  db[("학교 DB · MySQL<br/>시설 · 도로망 · 대중교통")]
+  ext["외부 API<br/>카카오 · TMAP<br/>기상청 · 광주 버스"]
+  subgraph prep["미리 한 번: 데이터를 갱신할 때"]
+    raw["원본 자료<br/>공공데이터 · OSM"] --> scripts["적재 스크립트<br/>Python"]
+  end
+  app -->|HTTP · JSON| places
+  app --> route
+  route --> db
+  places --> ext
+  situation --> ext
+  scripts --> db

@@ -74,6 +74,7 @@ B파트가 `edge_penalty`에 칸 추가(지킴이집·횡단·쉼 곳·보도턱
 | 주소 | 하는 일 | 관련 FR | 만드는 파트 |
 | --- | --- | --- | --- |
 | `GET /api/places` | 장소 이름·주소 검색. 서버가 카카오 키워드 검색을 대신 부름 | FR-01 | C |
+| `GET /api/places/nearby` | 현재 위치에서 지금 이용 가능한 가장 가까운 화장실·경찰서·지킴이집·쉼터. DB의 poi\_status 뷰에서 꺼냄(카카오 안 부름) | FR-50 | C |
 | `POST /api/route` | 출발·도착 → 최단·안전 경로, 차이 설명, 경로 주변 시설 | FR-02\~07 | B(계산), C(주소) |
 | `GET /api/health` | 서버·DB 상태와 데이터 기준일. 시연 전 점검용 | — | C |
 | POST /api/explain (3차) | 기본 설명 문장을 LLM으로 다듬어 돌려줌. 실패하면 기본 문장 | FR-43 | C |
@@ -90,6 +91,19 @@ B파트가 `edge_penalty`에 칸 추가(지킴이집·횡단·쉼 곳·보도턱
 ```
 
 - 카카오가 실패하면 `503`과 `SEARCH_UNAVAILABLE`을 준다. 앱은 "검색이 잠시 안 됩니다. 지도를 길게 눌러 고를 수 있어요"를 띄운다(4.2).
+
+**가까운 곳** `GET /api/places/nearby?lat=35.1473&lon=126.9214&kind=toilet&mode=senior` (FR-50, 김재휘 안)
+
+- `kind`: `toilet`·`police`·`guard_house`·`school_zone`·`shelter`·`bell` 중 하나(앱이 설정에서 고른 종류마다 부름). `mode=wheelchair`이면 화장실은 장애인 화장실(`poi.wheelchair = 1`)만. `school_zone`·`bell`은 여는 시간이 없어 상태 없이 가까운 순서로 준다.
+- 서버는 `poi_status`에서 1km 안, `now_status`가 '이용 가능'인 곳을 직선으로 가까운 5곳까지 돌려준다. 없으면 '확인 안 됨'인 곳을, 그마저 없으면 빈 목록과 가장 가까운 닫힌 곳(`closest_closed`)을 준다.
+- 앱은 목록의 곳들로 `/api/route`를 불러 걷는 거리가 가장 짧은 곳을 ③에 보여 준다(처음에는 찫 번째 곳만 불러도 됨).
+
+```json
+{ "places": [
+    { "id": 51234, "kind": "toilet", "name": "광주역 공중화장실", "lat": 35.1461, "lon": 126.9208, "distanceM": 140,
+      "nowStatus": "이용 가능", "nowNote": "개방 시간 06:00~22:00", "wheelchair": true } ],
+  "closestClosed": null }
+```
 
 **경로 계산** `POST /api/route`
 

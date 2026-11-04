@@ -39,9 +39,9 @@
 | 서버 | 장소 검색(`/api/places`), TMAP 비교 경로, 상황 판단(밤), 서버 상태(`/api/health`), 공통 오류 처리 | safe-route develop (패키지 place·tmap·situation·health·common) | develop에 합침 |
 | 경로 엔진 | `/api/route`: 모드별 낮·밤 기준, 커버율 계산, 시설 이용 가능 판단, 설명 문장 | safe-route develop (패키지 route, 기준값 `route.yml`, `docs/route-weights.md`) | develop에 합침(2026-11-03, PR #28, B파트) |
 | 적재 스크립트 | 원본 자료를 받아 정제하고 길별 원값을 미리 계산해 DB에 넣음 | safe-route `scripts/` (Python), ingest 패키지 (Java) | 시설·도로망·`edge_stat`·`poi`·대중교통까지 넣음 |
-| 학교 DB | 시설·도로망·길별 원값·대중교통 표 (8.2) | MySQL 8.0.41 (학교 서버) | 시설 약 550만 건, `poi` 100,547곳, 광주 전체 길 81,847개, 대중교통 표 9개 |
+| 학교 DB | 시설·도로망·길별 원값·대중교통 표 (8.2) | MySQL 8.0.41 (학교 서버) | 시설 약 550만 건, `poi` 100,547곳, 광주 전체 길 81,332개(자동차전용도로 515개 뺀 뒤), 대중교통 표 9개 |
 
-**연결 전에 맞출 것.** ① 경로 엔진은 develop에 합쳤다(PR #28). ② 모드 이름은 엔진 기준 `adult`·`child`·`senior`·`wheelchair`로 정했다(결정 43). 앱은 지금 `disabled`·`general`을 보내므로 바꿔야 한다. ③ 휠체어 모드에서 경사로가 있는 계단(`road_edge.wheelchair_ramp = 1`)은 빼지 않는다(결정 43). 엔진이 이 칸을 읽도록 고쳐야 한다.
+**연결 전에 맞출 것 (2026-11-04).** ① 경로 엔진은 develop에 합쳤다(PR #28·#29·#30). ② 모드 이름은 엔진 기준 `adult`·`child`·`senior`·`wheelchair`로 정했고(결정 43), 앱도 이 이름을 보내도록 바꿨다(safe-route-android PR #20, 2026-11-03). ③ 휠체어 모드에서 경사로가 있는 계단(`road_edge.wheelchair_ramp = 1`)은 빼지 않는다(결정 43, PR #30에 반영). ④ 앱이 부를 길찾기 창구 `POST /api/route`는 C파트 PR #33으로 올라와 있고 아직 develop에 합치지 않았다. ⑤ 학교 DB는 학교 네트워크 안에서만 접속되므로, 시연 때 서버를 어디에 둘지 정해야 한다(0.5, 8.4).
 
 ### 8.1 경로 요청 처리 순서
 
@@ -78,11 +78,13 @@
 | `data_source` | 출처별 적재 현황 | type, source, total\_count, loaded\_count, skipped\_count, complete, loaded\_at | 만듦 |
 | `road_node` | 길이 만나는 점 | id(OSM 번호), lon, lat, geom | 만듦 (2026-11-02) |
 | `road_edge` | 두 점 사이의 길 | id, from\_node, to\_node, length\_m, highway, covered, steps, wheelchair\_ramp(계단의 휠체어 경사로: 1 있음·0 없음·NULL 모름. OSM ramp:wheelchair·ramp로 DB가 계산, 2026-11-03 추가·학교 DB 반영. 광주 전체 계단 433개 중 있음 0·없음 23·모름 410), geom(선) | 만듦 (2026-11-02) |
-| `edge_stat` | 길마다 감점의 원값. 0\~1 감점은 서버가 route.yml 기준값으로 만듦(6.5). edge\_penalty에서 이름을 바꿈 | edge\_id, light\_n·light\_cover\_m, cctv\_n·cctv\_cover\_m, help\_m·help\_night\_m(밤에 열린 곳: 24시간 경찰·길가 비상벨·편의점)·guard\_m·rest\_m·heat\_m·cold\_m(+1km 안 수), school\_zone\_m(어린이보호구역 대상 시설까지, 300m 안이면 보호구역 안), xing\_signal·nosignal·unknown, curb, footbridge\_ok, road\_class, sgg\_cd·dong\_cd, data\_gap | 만듦 (2026-11-02, 2026-11-03 광주 전체 길 81,847개로 다시 계산) |
+| road\_edge\_excluded | 도로망에서 뺀 길. 사람이 걸을 수 없는 자동차전용도로(OSM motorroad=yes·expressway=yes)를 보관한다. 경로 엔진은 읽지 않음(결정 46) | edge\_id(road\_edge에 있던 때의 id), way\_id, seq, from\_node, to\_node, length\_m, highway, name, tags, geom, reason(motorroad·expressway) | 만듦 (2026-11-04, 020. 515구간 136km: motorroad 479·expressway 36) |
+| edge\_stat\_excluded | 뺀 길의 edge\_stat 원값. 되돌릴 때 다시 계산하지 않아도 되게 둬 | edge\_stat과 같음 (road\_edge\_excluded.edge\_id로 이어짐) | 만듦 (2026-11-04, 020, 515줄) |
+| `edge_stat` | 길마다 감점의 원값. 0\~1 감점은 서버가 route.yml 기준값으로 만듦(6.5). edge\_penalty에서 이름을 바꿈 | edge\_id, light\_n·light\_cover\_m, cctv\_n·cctv\_cover\_m, help\_m·help\_night\_m(밤에 열린 곳: 24시간 경찰·길가 비상벨·편의점)·guard\_m·rest\_m·heat\_m·cold\_m(+1km 안 수), school\_zone\_m(어린이보호구역 대상 시설까지, 300m 안이면 보호구역 안), xing\_signal·nosignal·unknown, curb, footbridge\_ok, road\_class, sgg\_cd·dong\_cd, data\_gap | 만듦 (2026-11-02, 2026-11-03 광주 전체 길 81,847개로 다시 계산, 2026-11-04 자동차전용도로 515개를 빼 81,332개) |
 | admin\_area | 행정구역 경계 (SGIS 2025년 2분기, 전국 시도 17·시군구 252, 광주 행정동 96). 데이터 부족 판정과 길·시설의 구·동 찾기에 씀 | level(sido·sigungu·dong), code(SGIS 코드), name, full\_name, base\_date, geom(다각형, 공간 인덱스) | 만듦 (2026-11-02) |
 | region\_density | 시군구마다 시설 종류별 밀도와 데이터 부족 판정(전국 중간값의 10% 아래). edge\_stat.data\_gap을 만드는 근거 | sgg\_cd, kind(light·cctv·help·guard·rest), n, area\_km2, density, ratio, gap | 만듦 (2026-11-02, 전국 252곳) |
 | poi | 지도 표시·경로 응답용 정제 시설(광주 경계 안). 시설 표 13개를 한 모양으로 모으고, 같은 종류 10m 안 중복을 합침(CCTV는 전국·광주 파일). 서버는 지도 아이콘과 경로 주변 시설을 이 표에서 꺼냄. 화장실·쉼터는 운영 기간(season\_from·season\_to)과 여는 시각(open\_from·open\_to·open\_days)을 오늘·지금과 비교해 '이용 가능 / 닫힘 / 운영 기간 아님 / 확인 안 됨'을 붙임. 무더위쉼터·한파쉼터는 계절이 달라 따로 두고, 운영 기간은 원본에 없어 정부 대책 기간(폭염 5.20\~9.30, 한파 11.15\~3.15)을 넣음. 화장실·건물 안 비상벨은 indoor=1로 표시(지도에는 모두 보임). CCTV는 교통·쓰레기 단속, 시설·재난 관리용을 빼고 넣음. 쉼터는 계절과 상관없이 모두 지도에 보이고, 길찾기 결과의 화장실·쉼터 상태는 poi\_status 뷰의 now\_status와 그 근거 now\_note로 꺼냄(DB 시각 기준). 쉼터 중 행정복지센터·은행·도서관·복지관·보건소·지하철역은 쉼터 기간이 아니어도 일반 업무 시간(place\_type·biz\_from·biz\_to·biz\_days, 예: 은행 평일 09\~16시, 지하철역 매일 05:30\~24시)이면 '이용 가능'으로 보고, 경로당은 회원 위주라 기간 밖이면 '운영 기간 아님'. 업무 시간은 기관마다 다를 수 있는 일반값. 같은 방식으로 경찰(지구대·파출소·경찰서 24시간, 치안센터 평일 09\~18시), 비상벨(길가 24시간, 화장실 안은 50m 안 화장실 개방 시간), 아동안전지킴이집(편의점·문구점·약국·마트 등 가게 종류별 일반 영업시간, 시간 밖은 닫혔을 수 있어 확인 안 됨), 무더위쉼터(기간 안 평일 09\~18시, 원본의 야간·주말 개방 표시 반영)에도 상태를 붙임. 평일 규칙은 공휴일(holiday 표, 2026\~2027 대체공휴일 포함)을 주말처럼 봄. 원본을 다시 넣으면 scripts/build\_poi.py로 다시 만듦 | kind(light·cctv·police·bell·store·guard\_house·shelter·toilet·footbridge·crosswalk·school\_zone), sub, name, address, lon, lat, geom, cnt(합친 수·카메라 대수), wheelchair, open\_hours·open\_from·open\_to·open\_days, season\_from·season\_to, indoor, phone, modes(common·child·senior·wheelchair), detail(앱에 바로 띄울 문장), sgg\_cd·dong\_cd, sources | 만듦 (2026-11-02, 100,547곳(2026-11-03 다시 만듦): 등 85,754·CCTV 4,514·횡단보도 3,539(OSM 3,256 포함)·계단 433·쉼터 2,936·화장실 1,205 등) |
-| edge\_poi | 길마다 50m 안 시설(poi, 등 제외)과 길 위 위치. 서버는 경로의 길 id로 이 표를 읽어 시설 목록을 만들고, 길 순서와 pos로 "80m 앞 편의점", "쉬는 곳이 300m마다"를 계산. poi를 다시 만들면 scripts/build\_edge\_poi.py도 다시 돌림 | edge\_id, poi\_id, kind, dist\_m(길에서 거리), pos(from\_node 0 → to\_node 1) | 만듦 (2026-11-02, 2026-11-03 광주 전체 길 81,847개로 다시 만듦, 171,525줄) |
+| edge\_poi | 길마다 50m 안 시설(poi, 등 제외)과 길 위 위치. 서버는 경로의 길 id로 이 표를 읽어 시설 목록을 만들고, 길 순서와 pos로 "80m 앞 편의점", "쉬는 곳이 300m마다"를 계산. poi를 다시 만들면 scripts/build\_edge\_poi.py도 다시 돌림 | edge\_id, poi\_id, kind, dist\_m(길에서 거리), pos(from\_node 0 → to\_node 1) | 만듦 (2026-11-02, 2026-11-03 광주 전체 길 81,847개로 다시 만듦, 171,525줄. 2026-11-04 자동차전용도로를 빼 171,026줄) |
 | cctv 목적 분류 (칸 추가) | 설치 목적 원문 11가지를 8개로 묶음. 목적이 빈 광주 파일은 10m 안 행안부 파일 카메라의 목적을 가져옴(6,614대 중 252대). 나머지는 '모름'이고, 나중에 다른 자료나 현장 확인으로 채울 때는 purpose\_from='직접 입력'으로 두면 다시 돌려도 덮어쓰지 않음. 길 계산·데이터 부족 판정·poi는 교통·쓰레기·시설·재난을 빼고 셈(2026-11-02 결정, 목적 모름은 셈) | purpose\_group(방범·어린이·다목적·교통·쓰레기·시설·재난·기타·모름), purpose\_from(원본 / 10m 안 행안부 파일 / 직접 입력) | 만듦 (2026-11-02, scripts/classify\_cctv.py. 방범 242,002·다목적 49,135·어린이 30,297·교통 22,558·모름 6,362 등) |
 | facility\_unlocated | 위치를 믿을 수 없어 시설 표에서 뺀 줄을 지우지 않고 모아 둔 표. 좌표가 한 점에 몰렸거나(지자체가 기관 좌표·기본값을 넣음) 좌표가 없었는데 카카오 주소·장소 검색으로도 못 찾았거나 번지 있는 주소가 없는 줄. 원본 줄 전체를 attrs에 둬서, 나중에 좌표를 찾으면 원래 표로 되돌릴 수 있음. scripts/fix\_cctv\_coords.py·fix\_pile\_coords.py·fill\_missing\_coords.py가 지우는 대신 여기로 옮김 | tbl(원래 표), source, source\_id, kind, name, address, lon·lat(원본 좌표), reason(뺀 이유), tried(찾아본 검색어), attrs, moved\_at | 만듦 (2026-11-02, 6,057줄: 보안등 4,128·CCTV 1,870·횡단보도 39·비상벨 17·지킴이집 3) |
 | holiday | 공휴일(관공서 공휴일 기준, 대체공휴일 포함). poi\_status가 평일 규칙을 판단할 때 주말처럼 봄. 직접 넣은 값이라 임시공휴일이 생기면 한 줄 추가 | day, name | 만듦 (2026-11-02, 2026\~2027년 40일) |
@@ -99,7 +101,7 @@
 
 B파트가 `edge_penalty`에 칸 추가(지킴이집·횡단·쉼 곳·보도턱·육교)와 감점 원값 저장을 제안했다(2026-10-30). 도로망 표를 만들기 전에 정할 것은 6.5 "A파트와 맞출 것"(C1\~C6)에 있다.
 
-도로망은 광주 전체(2026-11-03, 결정 44. 처음에는 국립아시아문화전당 반경 2km)를 `road_node`(62,113)·`road_edge`(81,847)에 넣었다(OSM). `road_edge`에는 위 표의 칸에 더해 OSM 길 번호(`way_id`)·이름·인도/횡단 구분(`footway`)·다리·바닥 재질을 두고, `road_node`에는 횡단보도 신호(`crossing`)·보도턱(`kerb`) 표시를 둔다. 행정구역 경계는 `admin_area`(SGIS 2025년 2분기, 전국 시도 17·시군구 252, 광주 행정동 96)에 있고, 시군구별 시설 밀도와 데이터 부족 판정은 region\_density에 있다(6.5).
+도로망은 광주 전체(2026-11-03, 결정 44. 처음에는 국립아시아문화전당 반경 2km)를 `road_node`(62,113)·`road_edge`(81,847)에 넣었고(OSM), 2026-11-04에 사람이 걸을 수 없는 자동차전용도로(motorroad·expressway=yes) 515구간(136km)을 빼 road\_edge\_excluded에 보관했다(남은 길 81,332개, 결정 46). `road_edge`에는 위 표의 칸에 더해 OSM 길 번호(`way_id`)·이름·인도/횡단 구분(`footway`)·다리·바닥 재질을 두고, `road_node`에는 횡단보도 신호(`crossing`)·보도턱(`kerb`) 표시를 둔다. 행정구역 경계는 `admin_area`(SGIS 2025년 2분기, 전국 시도 17·시군구 252, 광주 행정동 96)에 있고, 시군구별 시설 밀도와 데이터 부족 판정은 region\_density에 있다(6.5).
 
 ### 8.3 앱↔서버 API (1차)
 
@@ -154,7 +156,7 @@ B파트가 `edge_penalty`에 칸 추가(지킴이집·횡단·쉼 곳·보도턱
 - `night`: `auto`(기본, 일몰 계산), `on`, `off` 중 하나(FR-03). 낮에 시연할 때는 `on`으로 보낸다.
 - `mode`: `child`(어린이·청소년)·`senior`(노인)·`wheelchair`(휠체어)·`adult`(기본, 그 밖의 보행자) 중 하나. 1차부터 보낸다. 없으면 `adult`. 모르는 값이면 서버가 오류를 돌려준다.
 
-  모드 이름은 경로 엔진(`route.yml`)의 이름으로 정했다(결정 43, 2026-11-03). 앱(safe-route-android)은 지금 `disabled`·`general`을 보내므로 화면 이름 장애인 → `wheelchair`, 일반 → `adult`로 바꾼다.
+  모드 이름은 경로 엔진(`route.yml`)의 이름으로 정했다(결정 43, 2026-11-03). 앱(safe-route-android)도 PR #20으로 이 이름을 보낸다: 화면 이름 장애인 → `wheelchair`, 일반 → `adult`, 어린이 → `child`, 노인 → `senior`. 예전 이름(`disabled`·`general`)으로 휴대폰에 저장된 모드도 읽는다.
 
 응답 (좌표와 시설 목록은 줄인 예):
 

@@ -58,6 +58,18 @@
 
 ![경로 계산에 쓰는 표의 관계: road_node·road_edge·edge_stat·edge_poi·poi·holiday·admin_area·region_density](images/route_core_erd.png)
 
+선 끝 모양은 개수다. 세로줄 두 개는 "딱 하나", 동그라미와 갈퀴는 "0개 이상"이다(예: 점 하나에 길이 여러 개 이어짐). 선마다 왜 연결되는지는 아래와 같다.
+
+| 선 | 이어지는 칸 | 왜 연결되나 |
+| --- | --- | --- |
+| ① 길의 양 끝점 | `road_edge.from_node`·`to_node` → `road_node.id` | 길 하나는 두 점을 잇는다. 경로 엔진은 점을 꼭짓점, 길을 선으로 삼아 길찾기 그래프를 만든다 |
+| ② 길마다 원값 | `edge_stat.edge_id` → `road_edge.id` (길 하나에 한 줄) | 길마다 밝기·CCTV가 덮는 길이, 도움 시설·쉴 곳·보호구역까지 거리, 횡단·보도턱·육교 같은 원값을 미리 계산해 둔다. 엔진이 길을 고를 때 읽는다(6.1) |
+| ③ 길 옆 시설 | `edge_poi.edge_id` → `road_edge.id` | 길마다 50m 안에 있는 시설과 길 위 위치. 경로가 지나는 길로 시설 목록과 "80m 앞 편의점" 같은 안내를 만든다 |
+| ④ 시설 정보 | `edge_poi.poi_id` → `poi.id` | `edge_poi`에는 시설 번호만 있어, 이름·종류·여는 시간은 `poi`에서 가져온다 |
+| ⑤ 길이 속한 구·동 | `edge_stat.sgg_cd`·`dong_cd` → `admin_area.code` | 길 시작점이 있는 구·동. 그 구의 시설 밀도가 낮으면 그 길의 `data_gap`(데이터 부족) 비트를 켠다 |
+| ⑥ 구별 시설 밀도 | `region_density.sgg_cd` → `admin_area.code` | 시군구마다 시설 종류별 밀도를 세어, 전국 중간값의 10% 아래면 부족으로 본다 |
+| ⑦ 공휴일 휴무 | 칸으로 잇지 않음 (`poi_status` 뷰가 오늘 날짜로 `holiday`를 봄) | 평일만 여는 시설은 공휴일에 닫힌 것으로 본다 |
+
 | 표 | 내용 | 주요 칸 | 만든 때 |
 | --- | --- | --- | --- |
 | 시설 표 10개 (`streetlight`, `security_light`, `cctv`, `police`, `emergency_bell`, `convenience_store`, `child_safety_house`, `heat_shelter`, `cold_shelter`, `public_toilet`) | 시설 한 개가 한 줄. 종류마다 표 하나 (2026-10-29에 한 표 `facility`에서 나눔) | kind, source, source\_id, name, address, sido\_code, sgg\_code, lon, lat, geom(공간 인덱스), attrs(JSON), 종류별 칸(예: lamp\_count, camera\_count) | 만듦 |

@@ -4,7 +4,7 @@
 
 | 문서 | 내용 |
 |---|---|
-| [requirements.md](requirements.md) | 요구사항 분석서 목차 (탭 7개로 나뉜 파일 목록) |
+| [requirements.md](requirements.md) | 요구사항 분석서 목차 (탭 8개로 나뉜 파일 목록) |
 | [requirements/](requirements/) | 요구사항 분석서 본문: 원본 문서의 탭 하나가 파일 하나 |
 | [CHANGELOG.md](CHANGELOG.md) | 요구사항 분석서 변경 이력: 무엇이 바뀌었고 왜 바꿨는지 |
 

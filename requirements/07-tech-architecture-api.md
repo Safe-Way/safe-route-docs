@@ -88,6 +88,7 @@
 | 원본 시설 | 시설 표 13개(`streetlight`·`security_light`·`cctv` 등, 5.1)·`facility_all`(뷰)·`facility_unlocated`·`data_source` | 받은 그대로의 시설, 위치를 못 찾은 줄 보관, 출처별 적재 기록. `poi`를 만드는 재료라 엔진은 읽지 않음 | 약 550만·7,162 |
 | 대중교통 | `subway_station`·`subway_entrance`·`subway_timetable`·`subway_transfer`·`subway_exit_bus`·`subway_exit_place`·`bus_stop`·`bus_line`·`lowfloor_bus` | 광주 지하철·버스(5.1 19\~24번). FR-37과 휠체어 모드에 씀 | 28,446줄 |
 | 불편 접수 (2차) | `road_report`·`road_report_photo` | 노인·장애인 모드에서 올린 불편한 곳(유형·위치·모드·상태)과 사진(FR-49, 023). 사진은 서버를 다시 배포해도 남게 DB에 둠. 엔진은 읽지 않음 | 0 (11-05 만듦) |
+| 개인 보행 속도 (추가안) | `walk_profile`·`walk_speed_sample` | 게스트 번호별 걸음 속도와 최근 측정 20개(FR-52, 025). 좌표·시각은 저장하지 않음. 엔진은 읽지 않음 | 0 (11-05 만듦) |
 | 아직 없음 | `accident_zone`(보류, FR-44)·`user_place`(추후, FR-45 2단계) | 사고다발 영역, 사용자 제보 장소 | — |
 
 좌표는 WGS84 경도·위도를 `POINT(경도, 위도)`로 넣고(SRID 0) 거리는 `ST_Distance_Sphere`로 잰다. MySQL의 SRID 4326은 위도·경도 순서라 실수하기 쉽기 때문이다.

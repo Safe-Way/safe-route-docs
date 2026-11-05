@@ -22,6 +22,7 @@
 | 데이터 내려받기 | Python 3 표준 라이브러리 스크립트 | 가끔 돌리는 도구라 설치 없이 실행. 시설 적재는 Java, 도로망·행정구역 경계·edge\_stat은 Python이 SQL을 만들어 mysql로 넣음(2026-11-02) | Java로 통일 |
 | 테스트 | JUnit 5 + Spring Boot Test | 기본 포함 | — |
 | 버전 관리 | git + GitHub 비공개 저장소 3개: 서버 코드는 safe-route, 안드로이드 앱은 safe-route-android(패키지 com.deungbul.anshimgil, Jetpack Compose, minSdk 26), 요구사항 문서는 safe-route-docs (2026-10-30에 나눔) | `.env`·원본 데이터는 제외 | — |
+| 배포 | GitHub Actions + Docker, 학교 서버 (앱 서버 2대를 한 대씩 교체, https://safe-route.java21.net) | develop에 머지하면 테스트 뒤 자동 배포(약 2분 30초)되어 손으로 올릴 일이 없고, 배포 중에도 끊기지 않음. 학교 DB 옆이라 내부 주소로 붙음. 낮 시간 30분마다 상태 확인(결정 50) | 내 컴퓨터 서버 + 터널(주소가 켤 때마다 바뀜), Oracle Cloud(학교 DB에 못 붙음) |
 
 ## 8. 시스템 구조
 
@@ -217,8 +218,8 @@
 
 | 항목 | 할 일 | 파트 |
 | --- | --- | --- |
-| 휴대폰에서 서버까지 가는 길 | 학교 DB는 학교 네트워크 안에서만 접속되므로, 서버는 학교망에 연결된 노트북에서 돌린다. 개발: 에뮬레이터는 `http://10.0.2.2:8080`(노트북의 localhost), 실제 휴대폰은 노트북과 같은 와이파이에서 `http://노트북IP:8080`. 발표·학교 밖 시연: 노트북 서버를 터널(cloudflared 등)로 https 주소에 열거나 서버·DB를 클라우드로 옮김(0.5 "서버를 어디에") | C, D |
-| http 허용 | 안드로이드는 기본으로 https만 허용한다. 앱은 network\_security\_config.xml에서 10.0.2.2·localhost·127.0.0.1만 http를 허용해 두었다. 같은 와이파이의 실제 휴대폰으로 시연하려면 노트북 IP를 여기에 추가한다. 터널(https)을 쓰면 필요 없음 | D |
+| 휴대폰에서 서버까지 가는 길 | 서버는 학교 서버에 도커로 2대를 띄우고, 앱은 https://safe-route.java21.net 으로 부른다(학교 nginx가 인증서를 붙여 서버 포트로 넘김). develop에 머지하면 GitHub Actions가 테스트를 돌린 뒤 학교 서버에 자동 배포하고, 한 대씩 바꿔 배포 중에도 끊기지 않는다(결정 50). 상태 확인 주소는 /actuator/health(UP이면 정상)이고, 낮 시간에는 30분마다 자동으로 확인해 안 되면 이슈를 연다. 학교 DB는 학교 네트워크 안에서만 접속되므로 서버는 내부 주소로 붙는다. 개발 때 에뮬레이터는 http://10.0.2.2:8080(내 컴퓨터에서 띄운 서버). 학교 와이파이에서는 웹 필터 때문에 이 주소가 막혀 휴대폰 시험은 LTE로 한다 | C, D |
+| http 허용 | 안드로이드는 기본으로 https만 허용한다. 학교 서버 주소는 https(Let's Encrypt 인증서)라 따로 할 일이 없다. 앱의 network\_security\_config.xml은 개발용으로 10.0.2.2·localhost·127.0.0.1만 http를 허용해 둔다 | D |
 | 통신 라이브러리 | 앱은 따로 라이브러리 없이 HttpURLConnection과 org.json으로 부른다(data/ServerApi.kt). 요청·응답 모양은 8.3을 따름. 서버 주소는 local.properties의 SERVER\_BASE\_URL에 넣고, 비워 두면 예시 데이터를 쓴다 | D |
 | 키 나누기 | 앱에는 카카오맵 SDK용 네이티브 앱 키만 넣고, 카카오 개발자 콘솔에 앱의 키 해시를 등록. 카카오 REST·공공데이터·TMAP·LLM 키는 서버 `.env`에만 두고 앱은 서버를 거쳐 씀(NFR-05) | C, D |
 | 실패 처리 | 앱 요청 타임아웃은 연결 5초, 응답 10초. 실패하면 "경로를 불러오지 못했어요"와 다시 시도 버튼(3.4). SOS는 서버 없이 동작 | D |

@@ -127,7 +127,7 @@
 
 - `bbox`는 서쪽 경도, 남쪽 위도, 동쪽 경도, 북쪽 위도 순서다. 한 변이 0.2°(약 20km)를 넘으면 400 `BBOX_TOO_LARGE`("지도를 조금 더 확대해 주세요")를 준다.
 - `kinds`는 `cctv`·`police`·`bell`·`store`·`guard_house`·`school_zone`·`shelter`·`toilet`·`footbridge`·`crosswalk`·`stairs`·`subway` 중 여럿을 쉼표로 보낸다. 앱은 모드별 기본 목록에 설정에서 고른 것을 더해 보낸다(FR-48, 결정 47). 가로등(`light`)은 광주에만 8만 개가 넘어 점으로 보내지 않고 경로 계산에만 쓴다.
-- 지하철역(`subway`)은 모든 모드 공통이고 `count`가 지상 엘리베이터가 있는 출구 수다. 휠체어 판단도 출구 기준이다(역 안 엘리베이터만 있는 양동시장은 `wheelchair: false`). 출입구(`subway_entrance`, 92곳)도 `kinds`로 부를 수 있고, `wheelchair`가 그 출구 쪽 지상 엘리베이터다: `true` 있음·`false` 없음·`null` 확인 안 됨(결정 51).
+- 지하철역(`subway`)은 모든 모드 공통이고 `count`가 지상 엘리베이터가 있는 출구 수다. 휠체어 판단도 출구 기준이다(역 안 엘리베이터만 있는 양동시장과 출구 엘리베이터가 없는 녹동은 `wheelchair: false`). 출입구(`subway_entrance`, 92곳)도 `kinds`로 부를 수 있고, `wheelchair`가 그 출구 쪽 지상 엘리베이터다: `true` 있음·`false` 없음·`null` 확인 안 됨(결정 51).
 - `limit`은 기본 500, 최대 1000이다. 범위 가운데에서 가까운 순으로 주고, 한도를 넘으면 `truncated: true`를 붙인다. 이때 앱은 "지도를 확대하면 더 보여요"를 띄운다.
 - 응답은 `{ pois[], truncated }`이고 시설 모양은 가까운 곳과 같다(`distanceM`은 비어 있음). 문화전당 주변 화면 하나에서 471곳이 0.1초 안에 나왔다(2026-11-04, 학교 DB).
 

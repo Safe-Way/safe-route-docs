@@ -92,12 +92,13 @@
 
 ### 8.3 앱↔서버 API (1차)
 
-1차에서 앱이 부르는 서버 주소는 3개다. SOS·경보음·보호자 문자는 휴대폰 안에서 끝나므로 서버 API가 없다. 걷는 동안의 위치도 서버에 보내지 않는다(NFR-07). 모든 주소는 `/api`로 시작하고 JSON(UTF-8)으로 주고받는다. 좌표는 `lat`(위도)·`lon`(경도)로 이름을 붙여 쓰고, 경로 선(`geometry`)만 GeoJSON 순서인 `[경도, 위도]` 배열이다.
+1차에서 앱이 부르는 서버 주소는 5개다. SOS·경보음·보호자 문자는 휴대폰 안에서 끝나므로 서버 API가 없다. 걷는 동안의 위치도 서버에 보내지 않는다(NFR-07). 모든 주소는 `/api`로 시작하고 JSON(UTF-8)으로 주고받는다. 좌표는 `lat`(위도)·`lon`(경도)로 이름을 붙여 쓰고, 경로 선(`geometry`)만 GeoJSON 순서인 `[경도, 위도]` 배열이다.
 
 | 주소 | 하는 일 | 관련 FR | 만드는 파트 |
 | --- | --- | --- | --- |
 | `GET /api/places` | 장소 이름·주소 검색. 서버가 카카오 키워드 검색을 대신 부름 | FR-01 | C |
-| `GET /api/places/nearby` | 현재 위치에서 지금 이용 가능한 가장 가까운 화장실·경찰서·지킴이집·쉼터. DB의 poi\_status 뷰에서 꺼냄(카카오 안 부름) | FR-50 | C |
+| `GET /api/places/nearby` | 현재 위치 1km 안에서 지금 이용 가능한 가까운 곳 5곳(화장실·경찰서·지킴이집·어린이보호구역·쉼터·비상벨·편의점·지하철역). DB의 poi\_status 뷰에서 꺼냄(카카오 안 부름) | FR-50 | A |
+| `GET /api/pois` | 지도 범위 안의 모드별 시설 아이콘(CCTV·경찰서·화장실·쉼터·지하철역 등). poi\_status 뷰에서 꺼냄 | FR-48 | A |
 | `POST /api/route` | 출발·도착 → 최단·안전 경로, 차이 설명, 경로 주변 시설 | FR-02\~07 | B(계산), C(주소) |
 | `GET /api/health` | 서버·DB 상태와 데이터 기준일. 시연 전 점검용 | — | C |
 | POST /api/explain (3차) | 기본 설명 문장을 LLM으로 다듬어 돌려줌. 실패하면 기본 문장 | FR-43 | C |
@@ -115,11 +116,18 @@
 
 - 카카오가 실패하면 `503`과 `SEARCH_UNAVAILABLE`을 준다. 앱은 "검색이 잠시 안 됩니다. 지도를 길게 눌러 고를 수 있어요"를 띄운다(4.2).
 
-**가까운 곳** `GET /api/places/nearby?lat=35.1473&lon=126.9214&kind=toilet&mode=senior` (FR-50, 김재휘 안)
+**가까운 곳** `GET /api/places/nearby?lat=35.1473&lon=126.9214&kind=toilet&mode=senior` (FR-50, 2026-11-04 구현)
 
-- `kind`: `toilet`·`police`·`guard_house`·`school_zone`·`shelter`·`bell` 중 하나(앱이 설정에서 고른 종류마다 부름). `mode=wheelchair`이면 화장실은 장애인 화장실(`poi.wheelchair = 1`)만. `school_zone`·`bell`은 여는 시간이 없어 상태 없이 가까운 순서로 준다.
-- 서버는 `poi_status`에서 1km 안, `now_status`가 '이용 가능'인 곳을 직선으로 가까운 5곳까지 돌려준다. 없으면 '확인 안 됨'인 곳을, 그마저 없으면 빈 목록과 가장 가까운 닫힌 곳(`closest_closed`)을 준다.
-- 앱은 목록의 곳들로 `/api/route`를 불러 걷는 거리가 가장 짧은 곳을 ③에 보여 준다(처음에는 찫 번째 곳만 불러도 됨).
+- `kind`: `toilet`·`police`·`guard_house`·`school_zone`·`shelter`·`bell`·`store`·`subway` 중 하나(앱이 설정에서 고른 종류마다 부름). `mode=wheelchair`이면 화장실은 장애인 화장실(`poi.wheelchair = 1`), 지하철역은 엘리베이터가 있는 역만. `school_zone`·`bell`은 여는 시간이 없어 상태 없이 가까운 순서로 준다.
+- 서버는 `poi_status`에서 1km 안, `now_status`가 '이용 가능'인 곳(여는 시간이 없는 곳 포함)을 직선으로 가까운 5곳까지 돌려준다. 없으면 '확인 안 됨'인 곳과 안내 문장(`message`)을, 그마저 없으면 빈 목록과 가장 가까운 닫힌 곳(`closestClosed`), 안내 문장("가까운 곳에 열린 곳이 없어요" 또는 "1km 안에 이 시설이 없어요")을 준다. 응답은 `{ radiusM, places[], closestClosed, message }`이고, 시설마다 `distanceM`·`nowStatus`·`nowNote`·`wheelchair`·`modes`·`detail`이 붙는다. 값이 잘못되면 400 `BAD_PARAM`, DB가 안 되면 503 `DB_UNAVAILABLE`.
+- 앱은 목록의 곳들로 `/api/route`를 불러 걷는 거리가 가장 짧은 곳을 ③에 보여 준다(처음에는 첫 번째 곳만 불러도 됨). 문화전당에서 노인 모드 화장실을 물으면 5곳(가장 가까운 곳 90m)이 나왔다(2026-11-04, 학교 DB).
+
+**지도 시설** `GET /api/pois?bbox=126.915,35.143,126.925,35.150&kinds=cctv,toilet,police` (FR-48, 2026-11-04 구현)
+
+- `bbox`는 서쪽 경도, 남쪽 위도, 동쪽 경도, 북쪽 위도 순서다. 한 변이 0.2°(약 20km)를 넘으면 400 `BBOX_TOO_LARGE`("지도를 조금 더 확대해 주세요")를 준다.
+- `kinds`는 `cctv`·`police`·`bell`·`store`·`guard_house`·`school_zone`·`shelter`·`toilet`·`footbridge`·`crosswalk`·`stairs`·`subway` 중 여럿을 쉼표로 보낸다. 앱은 모드별 기본 목록에 설정에서 고른 것을 더해 보낸다(FR-48, 결정 47). 가로등(`light`)은 광주에만 8만 개가 넘어 점으로 보내지 않고 경로 계산에만 쓴다.
+- `limit`은 기본 500, 최대 1000이다. 범위 가운데에서 가까운 순으로 주고, 한도를 넘으면 `truncated: true`를 붙인다. 이때 앱은 "지도를 확대하면 더 보여요"를 띄운다.
+- 응답은 `{ pois[], truncated }`이고 시설 모양은 가까운 곳과 같다(`distanceM`은 비어 있음). 문화전당 주변 화면 하나에서 471곳이 0.1초 안에 나왔다(2026-11-04, 학교 DB).
 
 ```json
 { "places": [

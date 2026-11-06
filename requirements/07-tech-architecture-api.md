@@ -89,6 +89,9 @@
 | 대중교통 | `subway_station`·`subway_entrance`·`subway_timetable`·`subway_transfer`·`subway_exit_bus`·`subway_exit_place`·`bus_stop`·`bus_line`·`lowfloor_bus` | 광주 지하철·버스(5.1 19\~24번). FR-37과 휠체어 모드에 씀 | 28,446줄 |
 | 불편 접수 (2차) | `road_report`·`road_report_photo` | 노인·장애인 모드에서 올린 불편한 곳(유형·위치·모드·상태)과 사진(FR-49, 023). 사진은 서버를 다시 배포해도 남게 DB에 둠. 엔진은 읽지 않음 | 0 (11-05 만듦) |
 | 개인 보행 속도 (추가안) | `walk_profile`·`walk_speed_sample` | 게스트 번호별 걸음 속도와 최근 측정 20개(FR-52, 025). 좌표·시각은 저장하지 않음. 엔진은 읽지 않음 | 0 (11-05 만듦) |
+| 길 위 행사·돌발 | `road_event` | 행사·공사·사고·통제와 기간·반경(026). 엔진이 모드별로 피하거나 알림(#76) | 6 (11-06) |
+| 비서가 기억하는 것 | `user_profile`·`user_profile_now`(뷰)·`trip_log`·`trip_habit`(뷰)·`trip_weather_choice`(뷰)·`map_layer`·`user_map_layer` | 내 정보(평소·임시 모드와 언제까지), 이동 기록(동의한 사람만, 동네·30분 단위), 습관 요약, 지도 시설 사전 16가지와 내 지도 설정(027·028) | 시연 게스트 3명 |
+| 보호자 위치 공유 | `guardian_share` | 걷는 동안만 마지막 한 점, 끝나면 비우고 10분 뒤 지움(029) | 0 |
 | 아직 없음 | `accident_zone`(보류, FR-44)·`user_place`(추후, FR-45 2단계) | 사고다발 영역, 사용자 제보 장소 | — |
 
 좌표는 WGS84 경도·위도를 `POINT(경도, 위도)`로 넣고(SRID 0) 거리는 `ST_Distance_Sphere`로 잰다. MySQL의 SRID 4326은 위도·경도 순서라 실수하기 쉽기 때문이다.
@@ -244,12 +247,12 @@
 | `python3 scripts/refresh_data.py --fresh crosswalk,police` | 이 데이터는 받아 둔 폴더를 `_old_이름_시각`으로 옮기고 처음부터 다시 받음(안 주면 이미 받은 페이지는 건너뜀) | 가로등처럼 큰 데이터는 하루 호출 한도 때문에 며칠 |
 | `python3 scripts/refresh_data.py --roads` | OSM 도로망도 다시 받아 넣음(광주 전체) | 수십 분 |
 
-**도는 순서 (15단계).**
+**도는 순서 (16단계).**
 
 | 단계 | 순서 |
 | --- | --- |
 | 받기 | 공공데이터 API(이어 받기) → 지하철역·출입구 CSV |
-| 넣기 | 시설 원본(Java) → CCTV 좌표 고치기 → 몰린 좌표 고치기 → 빠진 좌표 채우기(광주) → 공중화장실(광주) → CCTV 목적 분류 → 대중교통 → 출구 엘리베이터(손으로 확인한 값) → 도로망(`--roads`를 줄 때만) |
+| 넣기 | 시설 원본(Java) → CCTV 좌표 고치기 → 몰린 좌표 고치기 → 빠진 좌표 채우기(광주) → 공중화장실(광주) → CCTV 목적 분류 → 대중교통 → 출구 엘리베이터(손으로 확인한 값) → 행사·돌발상황(문화축제·국가교통정보센터) → 도로망(`--roads`를 줄 때만) |
 | 계산 | 정제 시설 `poi` → 길별 원값 `edge_stat` → 데이터 부족 `data_gap` → 길별 주변 시설 `edge_poi` |
 
 **순서를 이렇게 정한 이유.**

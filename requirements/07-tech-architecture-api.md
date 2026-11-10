@@ -160,6 +160,16 @@
 
   모드 이름은 경로 엔진(`route.yml`)의 이름으로 정했다(결정 43, 2026-11-03). 앱(safe-route-android)도 PR #20으로 이 이름을 보낸다: 화면 이름 장애인 → `wheelchair`, 일반 → `adult`, 어린이 → `child`, 노인 → `senior`. 예전 이름(`disabled`·`general`)으로 휴대폰에 저장된 모드도 읽는다.
 
+지금은 아래 칸을 더 받는다(2026-11-10). 모두 없어도 되고, 없으면 예전과 같다.
+
+| 칸 | 뜻 | 근거 |
+|---|---|---|
+| `guestId` | 앱이 만든 무작위 번호. 있으면 그 사람의 계단·우회 한도·쉬는 간격으로 길을 고름 | 결정 54·56, safe-route #111 |
+| `rain` | `auto`(기본, 기상청)·`on`·`off`. 비면 지붕 있는 길·지하 길을 먼저 | safe-route #137 |
+| `stops` | 들를 곳 `[{name, lat, lon}]`, 순서대로. 걷기 최대 3곳, 응답 `routes[].stops[]`에 `atM`(경로를 따라 간 거리) | 결정 58, safe-route #144 |
+
+`POST /api/transit`도 같은 칸을 받는다. 다만 `stops`는 한 곳까지이고, 응답 `legs` 사이에 들르기 단계 `{"type":"stop","to":{name, lat, lon}}`가 들어간다(safe-route #121·#123).
+
 응답 (좌표와 시설 목록은 줄인 예):
 
 ```json

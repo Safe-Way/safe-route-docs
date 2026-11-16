@@ -42,7 +42,7 @@
 | 적재 스크립트 | 원본 자료를 받아 정제하고 길별 원값을 미리 계산해 DB에 넣음 | safe-route `scripts/` (Python), ingest 패키지 (Java) | 시설·도로망·`edge_stat`·`poi`·대중교통까지 넣음 |
 | 학교 DB | 시설·도로망·길별 원값·대중교통 표 (8.2) | MySQL 8.0.41 (학교 서버) | 시설 약 550만 건, `poi` 100,547곳, 광주 전체 길 81,332개(자동차전용도로 515개 뺀 뒤), 대중교통 표 9개 |
 
-**연결 전에 맞출 것 (2026-11-04).** ① 경로 엔진은 develop에 합쳤다(PR #28·#29·#30). ② 모드 이름은 엔진 기준 `adult`·`child`·`senior`·`wheelchair`로 정했고(결정 43), 앱도 이 이름을 보내도록 바꿨다(safe-route-android PR #20, 2026-11-03). ③ 휠체어 모드에서 경사로가 있는 계단(`road_edge.wheelchair_ramp = 1`)은 빼지 않는다(결정 43, PR #30에 반영). ④ 앱이 부를 길찾기 창구 `POST /api/route`는 C파트 PR #33으로 올라와 있고 아직 develop에 합치지 않았다. ⑤ 학교 DB는 학교 네트워크 안에서만 접속되므로, 시연 때 서버를 어디에 둘지 정해야 한다(0.5, 8.4).
+**지금 상태 (2026-11-16).** 11-04에 적어 둔 연결 전 할 일(엔진 develop 합치기, 모드 이름 `adult`·`child`·`senior`·`wheelchair`(결정 43), 경사로 있는 계단, `POST /api/route` 창구, 서버 위치)은 모두 끝났다. 서버는 학교 서버에 도커로 뜨고(결정 50), `main`에 머지되면 GitHub Actions가 빌드·테스트 뒤 배포한다(결정 55). 앱은 서버와 연결해 휴대폰에서 끝까지 동작한다.
 
 ### 8.1 경로 요청 처리 순서
 
@@ -84,7 +84,8 @@
 |  | `poi`·`poi_status`(뷰) | 정제 시설(광주, 12종)과 지금 이용 가능한지 | 100,547 |
 |  | `edge_poi` | 길마다 50m 안 시설과 길 위 위치 | 171,026 |
 |  | `holiday`·`admin_area`·`region_density` | 공휴일, 행정구역 경계, 시군구별 시설 밀도 | 40·365·1,260 |
-| 도로망에서 뺀 길 | `road_edge_excluded`·`edge_stat_excluded` | 사람이 걸을 수 없는 자동차전용도로. 엔진은 읽지 않음(결정 46) | 515 |
+| 도로망에서 뺀 길 | `road_edge_excluded`·`edge_stat_excluded` | reason으로 나눔. 사람이 걸을 수 없는 자동차전용도로(motorroad·expressway, 엔진은 읽지 않음, 결정 46). 엔진이 따로 읽는 길: 지하철역·지하상가 지하 길(underground), OSM 광장 면을 입구끼리 잇는 광장 가로지르기(plaza, build_plazas.py. 면 사이를 넘는 길은 손으로 확인해 넣음: 11-13 문화전당 북쪽 보행로 163m, 11-16 5·18민주광장 뼈대 307m(서쪽 끝은 서석로 선에 곧게 붙음)에 3·4번 출구 엘리베이터 등 가지 9개), 현장에서 막힌 것을 확인한 길(field_blocked). 광장 길은 높낮이를 몰라 휠체어는 버림. 단 5·18민주광장 뼈대는 평지라 tags.wheelchair = yes(현장 확인 필요, 엔진이 이 표시를 읽도록 바꾸어야 휠체어 길에 씀) | 자동차전용도로 515 · 지하 145 · 광장 4,207 · 막힌 길 10 (11-16) |
+| 인도 (034, 11-13) | `sidewalk`·`edge_sidewalk` | sidewalk: 국토지리정보원 연속수치지형도 인도(보도) 선 N3L_A0033320(1:5,000, 폭 WIDT·재질 QUAL·종류·자전거도로)과 국가기본도 보도경계면(폭은 넓이 ÷ 길이). edge_sidewalk: 차가 다니는 우리 길을 5m마다 나눠 나란한 인도가 큰 길 25m·그 밖 12m 안에 있는 쪽(both·left·right·no), 폭 중간값, 재질 (scripts/load_sidewalk.py). 엔진은 OSM 인도 태그가 없을 때만 쓰고 20m 미만 길에는 안 씀(결정 60) | 인도 40,688 (선 30,020·면 10,668) · 길 60,584 (양쪽 13,656·한쪽 9,029·없음 37,899) |
 | 원본 시설 | 시설 표 13개(`streetlight`·`security_light`·`cctv` 등, 5.1)·`facility_all`(뷰)·`facility_unlocated`·`data_source` | 받은 그대로의 시설, 위치를 못 찾은 줄 보관, 출처별 적재 기록. `poi`를 만드는 재료라 엔진은 읽지 않음 | 약 550만·7,162 |
 | 대중교통 | `subway_station`·`subway_entrance`·`subway_timetable`·`subway_transfer`·`subway_exit_bus`·`subway_exit_place`·`bus_stop`·`bus_line`·`lowfloor_bus` | 광주 지하철·버스(5.1 19\~24번). FR-37과 휠체어 모드에 씀 | 28,446줄 |
 | 불편 접수 (2차) | `road_report`·`road_report_photo` | 노인·장애인 모드에서 올린 불편한 곳(유형·위치·모드·상태)과 사진(FR-49, 023). 사진은 서버를 다시 배포해도 남게 DB에 둠. 엔진은 읽지 않음 | 0 (11-05 만듦) |
@@ -144,6 +145,8 @@
 ```
 
 **경로 계산** `POST /api/route`
+
+응답에 더해진 칸 (11-12~13, B파트 #241·#260): `routes[].alleys` `[{from, to, lengthM}]`와 `alleyM`(인도 없는 또는 모르는 골목 구간, 경로 점 번호), `routes[].narrows` `[{from, to, lengthM, widthM}]`와 `narrowM`(폭 1.5m 미만 인도), `routes[].sidewalks[].sidewalkWidthM`(인도 폭, 모르면 null. 기존 `widthM`은 차도 폭), 알림 kind `narrow`·`no_sidewalk_alley`(warn). 없으면 빈 목록이다. 같은 때 더해진 창구: `GET /api/places/here`(지금 위치 주소), `GET /api/bus/lines/stops?number=03`(노선의 기점→종점 정류장 순서·좌표, C파트 #262).
 
 요청:
 
